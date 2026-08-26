@@ -42,8 +42,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -55,6 +57,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.creacionesnormita.mobile.controller.ProductoController
 import com.creacionesnormita.mobile.core.design.Blush
 import com.creacionesnormita.mobile.core.design.Gold
 import com.creacionesnormita.mobile.core.design.Ink
@@ -64,9 +67,9 @@ import com.creacionesnormita.mobile.core.design.Paper
 import com.creacionesnormita.mobile.core.design.Sage
 import com.creacionesnormita.mobile.core.design.SoftInk
 import com.creacionesnormita.mobile.core.sample.serviciosDestacados
-import com.creacionesnormita.mobile.core.sample.vestidoDestacado
 import com.creacionesnormita.mobile.core.sample.vestidos
 import com.creacionesnormita.mobile.ui.components.ActionButton
+import com.creacionesnormita.mobile.ui.components.AutoCarousel
 import com.creacionesnormita.mobile.ui.components.BrandMark
 import com.creacionesnormita.mobile.ui.components.PlaceholderLines
 import com.creacionesnormita.mobile.ui.components.SectionDivider
@@ -138,6 +141,13 @@ private fun AppHeader(onMenuClick: () -> Unit) {
 
 @Composable
 private fun HomeContent(onGoCollection: () -> Unit, onGoAppointments: () -> Unit) {
+    // Controller (MVC): maneja la carga del vestido del día desde Supabase.
+    val productoController = remember { ProductoController() }
+
+    LaunchedEffect(Unit) {
+        productoController.cargarVestidoDelDia()
+    }
+
     // Esta primera pantalla sigue el mockup: bienvenida, vestido destacado y accesos rápidos.
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -163,9 +173,33 @@ private fun HomeContent(onGoCollection: () -> Unit, onGoAppointments: () -> Unit
                     .background(Color.White),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(vestidoDestacado.nombre, color = SoftInk, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Text(vestidoDestacado.estado, color = Marca, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
+                val vestido = productoController.vestidoDelDia
+                when {
+                    productoController.cargando -> {
+                        Text("Cargando vestido del día...", color = SoftInk, fontSize = 12.sp)
+                    }
+                    productoController.error != null -> {
+                        Text("No se pudo cargar: ${productoController.error}", color = SoftInk, fontSize = 11.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(24.dp))
+                    }
+                    vestido != null -> {
+                        AutoCarousel(
+                            imagenes = vestido.imagenes,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(topStart = 140.dp, topEnd = 140.dp, bottomStart = 22.dp, bottomEnd = 22.dp))
+                        )
+                    }
+                    else -> {
+                        Text("Aún no hay un vestido del día configurado", color = SoftInk, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(24.dp))
+                    }
+                }
+            }
+        }
+        productoController.vestidoDelDia?.let { vestido ->
+            item {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    Text(vestido.nombre, color = SoftInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text("$${vestido.precio}", color = Marca, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
                 }
             }
         }
