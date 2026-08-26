@@ -24,16 +24,32 @@ class AuthViewModel : ViewModel() {
     val authState: State<AuthState> = _authState
 
     fun login(email: String, password: String) {
+        val trimmedEmail = email.trim()
+        if (trimmedEmail.isEmpty()) {
+            _authState.value = AuthState.Error("El correo es obligatorio")
+            return
+        }
+        if (password.isEmpty()) {
+            _authState.value = AuthState.Error("La contraseña es obligatoria")
+            return
+        }
+
         viewModelScope.launch {
             _authState.value = AuthState.Loading
             try {
                 SupabaseClient.client.auth.signInWith(Email) {
-                    this.email = email
+                    this.email = trimmedEmail
                     this.password = password
                 }
                 _authState.value = AuthState.Success
             } catch (e: Exception) {
-                _authState.value = AuthState.Error(e.message ?: "Error al iniciar sesión")
+                e.printStackTrace()
+                val errorMsg = when {
+                    e.message?.contains("Invalid login credentials", ignoreCase = true) == true -> "Correo o contraseña incorrectos"
+                    e.message?.contains("network", ignoreCase = true) == true -> "Sin conexión a internet"
+                    else -> "No se pudo iniciar sesión. Inténtalo de nuevo"
+                }
+                _authState.value = AuthState.Error(errorMsg)
             }
         }
     }
@@ -46,11 +62,29 @@ class AuthViewModel : ViewModel() {
         celular: String,
         otroContacto: String
     ) {
+        val trimmedEmail = email.trim()
+        
+        // Mensajes amigables para campos vacíos
+        val errorMsg = when {
+            nombre.isBlank() -> "El nombre completo es obligatorio"
+            fechaNacimiento.isBlank() -> "La fecha de nacimiento es obligatoria"
+            celular.isBlank() -> "El número de celular es obligatorio"
+            trimmedEmail.isBlank() -> "El correo electrónico es obligatorio"
+            password.isBlank() -> "La contraseña es obligatoria"
+            password.length < 6 -> "La contraseña debe tener al menos 6 caracteres"
+            else -> null
+        }
+
+        if (errorMsg != null) {
+            _authState.value = AuthState.Error(errorMsg)
+            return
+        }
+
         viewModelScope.launch {
             _authState.value = AuthState.Loading
             try {
                 val response = SupabaseClient.client.auth.signUpWith(Email) {
-                    this.email = email
+                    this.email = trimmedEmail
                     this.password = password
                 }
                 
@@ -59,19 +93,34 @@ class AuthViewModel : ViewModel() {
                 if (user != null) {
                     val perfil = Perfil(
                         id = user.id,
-                        nombre = nombre,
-                        fecha_nacimiento = fechaNacimiento,
-                        celular = celular,
-                        otro_contacto = otroContacto.ifBlank { null }
+                        nombre = nombre.trim(),
+                        fecha_nacimiento = fechaNacimiento.trim(),
+                        celular = celular.trim(),
+                        otro_contacto = otroContacto.trim().ifBlank { null }
                     )
+                    
+                    // Primero guardamos el perfil
                     SupabaseClient.client.postgrest["profiles"].insert(perfil)
+                    
+                    // Cerramos sesión ANTES de avisar del éxito para evitar saltar a la pantalla principal
+                    try {
+                        SupabaseClient.client.auth.signOut()
+                    } catch (e: Exception) {
+                        // Ignorar errores de signout durante el registro
+                    }
+                    
                     _authState.value = AuthState.SignUpSuccess
                 } else {
-                    _authState.value = AuthState.Error("Error al crear usuario")
+                    _authState.value = AuthState.Error("No pudimos crear tu cuenta")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                _authState.value = AuthState.Error(e.message ?: "Error al registrarse")
+                val technicalError = when {
+                    e.message?.contains("User already exists", ignoreCase = true) == true -> "Este correo ya está registrado"
+                    e.message?.contains("network", ignoreCase = true) == true -> "Sin conexión a internet"
+                    else -> "Error al registrarse. Revisa los datos"
+                }
+                _authState.value = AuthState.Error(technicalError)
             }
         }
     }

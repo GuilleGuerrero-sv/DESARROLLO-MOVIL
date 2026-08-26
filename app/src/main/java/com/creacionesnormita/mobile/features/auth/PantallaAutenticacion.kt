@@ -44,6 +44,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -79,6 +80,10 @@ fun PantallaAutenticacion(
 
     val authState by viewModel.authState
     val context = LocalContext.current
+
+    // Validaciones visuales
+    val emailValido = android.util.Patterns.EMAIL_ADDRESS.matcher(if(estaRegistrando) correo else usuario).matches()
+    val clavesCoinciden = claveRegistro == confirmarClave
 
     LaunchedEffect(authState) {
         when (authState) {
@@ -148,69 +153,91 @@ fun PantallaAutenticacion(
                     AuthField(
                         value = nombre,
                         onValueChange = { nombre = it },
-                        label = "Nombre completo",
-                        icon = { Icon(Icons.Outlined.Person, contentDescription = null) }
+                        label = "Nombre completo*",
+                        icon = { Icon(Icons.Outlined.Person, contentDescription = null) },
+                        imeAction = ImeAction.Next
                     )
                     AuthField(
                         value = fechaNacimiento,
-                        onValueChange = { fechaNacimiento = it },
-                        label = "Fecha de nacimiento",
+                        onValueChange = { input ->
+                            // Lógica de auto-formateo para fecha DD/MM/AAAA
+                            val clean = input.filter { it.isDigit() }.take(8)
+                            val formatted = buildString {
+                                for (i in clean.indices) {
+                                    append(clean[i])
+                                    if ((i == 1 || i == 3) && i != clean.lastIndex) append("/")
+                                }
+                            }
+                            fechaNacimiento = formatted
+                        },
+                        label = "Fecha de nacimiento*",
                         placeholder = "DD/MM/AAAA",
                         keyboardType = KeyboardType.Number,
-                        icon = { Icon(Icons.Outlined.CalendarToday, contentDescription = null) }
+                        icon = { Icon(Icons.Outlined.CalendarToday, contentDescription = null) },
+                        imeAction = ImeAction.Next
                     )
                     AuthField(
                         value = celular,
                         onValueChange = { celular = it },
-                        label = "Número de celular",
+                        label = "Número de celular*",
                         keyboardType = KeyboardType.Phone,
-                        icon = { Icon(Icons.Outlined.Phone, contentDescription = null) }
+                        icon = { Icon(Icons.Outlined.Phone, contentDescription = null) },
+                        imeAction = ImeAction.Next
                     )
                     AuthField(
                         value = correo,
                         onValueChange = { correo = it },
-                        label = "Correo electrónico",
+                        label = "Correo electrónico*",
                         keyboardType = KeyboardType.Email,
-                        icon = { Icon(Icons.Outlined.Email, contentDescription = null) }
+                        icon = { Icon(Icons.Outlined.Email, contentDescription = null) },
+                        isError = correo.isNotEmpty() && !emailValido,
+                        imeAction = ImeAction.Next
                     )
                     AuthField(
                         value = otroContacto,
                         onValueChange = { otroContacto = it },
                         label = "Otro contacto",
                         placeholder = "Opcional",
-                        icon = { Icon(Icons.Outlined.Phone, contentDescription = null) }
+                        icon = { Icon(Icons.Outlined.Phone, contentDescription = null) },
+                        imeAction = ImeAction.Next
                     )
                     AuthField(
                         value = claveRegistro,
                         onValueChange = { claveRegistro = it },
-                        label = "Contraseña",
+                        label = "Contraseña*",
                         keyboardType = KeyboardType.Password,
                         isPassword = true,
-                        icon = { Icon(Icons.Outlined.Lock, contentDescription = null) }
+                        icon = { Icon(Icons.Outlined.Lock, contentDescription = null) },
+                        imeAction = ImeAction.Next
                     )
                     AuthField(
                         value = confirmarClave,
                         onValueChange = { confirmarClave = it },
-                        label = "Comprobar contraseña",
+                        label = "Comprobar contraseña*",
                         keyboardType = KeyboardType.Password,
                         isPassword = true,
-                        icon = { Icon(Icons.Outlined.Lock, contentDescription = null) }
+                        icon = { Icon(Icons.Outlined.Lock, contentDescription = null) },
+                        isError = confirmarClave.isNotEmpty() && !clavesCoinciden,
+                        imeAction = ImeAction.Done
                     )
                 } else {
                     AuthField(
                         value = usuario,
                         onValueChange = { usuario = it },
-                        label = "Usuario, correo o WhatsApp",
+                        label = "Correo electrónico*",
                         keyboardType = KeyboardType.Email,
-                        icon = { Icon(Icons.Outlined.Person, contentDescription = null) }
+                        icon = { Icon(Icons.Outlined.Person, contentDescription = null) },
+                        isError = usuario.isNotEmpty() && !emailValido,
+                        imeAction = ImeAction.Next
                     )
                     AuthField(
                         value = claveLogin,
                         onValueChange = { claveLogin = it },
-                        label = "Contraseña",
+                        label = "Contraseña*",
                         keyboardType = KeyboardType.Password,
                         isPassword = true,
-                        icon = { Icon(Icons.Outlined.Lock, contentDescription = null) }
+                        icon = { Icon(Icons.Outlined.Lock, contentDescription = null) },
+                        imeAction = ImeAction.Done
                     )
                 }
             }
@@ -284,6 +311,8 @@ private fun AuthField(
     placeholder: String = "",
     keyboardType: KeyboardType = KeyboardType.Text,
     isPassword: Boolean = false,
+    isError: Boolean = false,
+    imeAction: ImeAction = ImeAction.Next,
     icon: @Composable () -> Unit
 ) {
     OutlinedTextField(
@@ -298,14 +327,19 @@ private fun AuthField(
         },
         leadingIcon = icon,
         singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        isError = isError,
+        keyboardOptions = KeyboardOptions(
+            keyboardType = keyboardType,
+            imeAction = imeAction
+        ),
         visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
         shape = RoundedCornerShape(16.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = Ink,
             unfocusedBorderColor = Line,
             focusedLabelColor = Ink,
-            cursorColor = Ink
+            cursorColor = Ink,
+            errorBorderColor = MaterialTheme.colorScheme.error
         )
     )
 }
