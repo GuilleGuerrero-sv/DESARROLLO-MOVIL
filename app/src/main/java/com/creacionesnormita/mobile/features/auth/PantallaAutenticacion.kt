@@ -1,5 +1,6 @@
 package com.creacionesnormita.mobile.features.auth
 
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Phone
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -29,6 +32,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -37,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -45,6 +50,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.creacionesnormita.mobile.R
 import com.creacionesnormita.mobile.core.design.Blush
 import com.creacionesnormita.mobile.core.design.Ink
@@ -56,7 +62,10 @@ import com.creacionesnormita.mobile.core.design.SoftInk
 import com.creacionesnormita.mobile.ui.components.ActionButton
 
 @Composable
-fun PantallaAutenticacion(onAuthenticated: () -> Unit) {
+fun PantallaAutenticacion(
+    onAuthenticated: () -> Unit,
+    viewModel: AuthViewModel = viewModel()
+) {
     var estaRegistrando by rememberSaveable { mutableStateOf(false) }
     var usuario by rememberSaveable { mutableStateOf("") }
     var claveLogin by rememberSaveable { mutableStateOf("") }
@@ -67,6 +76,27 @@ fun PantallaAutenticacion(onAuthenticated: () -> Unit) {
     var otroContacto by rememberSaveable { mutableStateOf("") }
     var claveRegistro by rememberSaveable { mutableStateOf("") }
     var confirmarClave by rememberSaveable { mutableStateOf("") }
+
+    val authState by viewModel.authState
+    val context = LocalContext.current
+
+    LaunchedEffect(authState) {
+        when (authState) {
+            is AuthState.Success -> {
+                onAuthenticated()
+                viewModel.resetState()
+            }
+            is AuthState.SignUpSuccess -> {
+                Toast.makeText(context, "¡Cuenta creada con éxito! Ya puedes iniciar sesión.", Toast.LENGTH_LONG).show()
+                estaRegistrando = false
+                viewModel.resetState()
+            }
+            is AuthState.Error -> {
+                Toast.makeText(context, (authState as AuthState.Error).message, Toast.LENGTH_LONG).show()
+            }
+            else -> {}
+        }
+    }
 
     // Esta pantalla solo prepara el flujo visual; la autenticación real se agrega después.
     Box(
@@ -186,11 +216,26 @@ fun PantallaAutenticacion(onAuthenticated: () -> Unit) {
             }
 
             Spacer(Modifier.height(22.dp))
-            ActionButton(
-                text = if (estaRegistrando) "Crear cuenta" else "Entrar",
-                onClick = onAuthenticated,
-                modifier = Modifier.fillMaxWidth()
-            )
+            
+            if (authState is AuthState.Loading) {
+                CircularProgressIndicator(color = Marca, modifier = Modifier.size(32.dp))
+            } else {
+                ActionButton(
+                    text = if (estaRegistrando) "Crear cuenta" else "Entrar",
+                    onClick = {
+                        if (estaRegistrando) {
+                            if (claveRegistro == confirmarClave) {
+                                viewModel.signUp(correo, claveRegistro, nombre, fechaNacimiento, celular, otroContacto)
+                            } else {
+                                Toast.makeText(context, "Las contraseñas no coinciden", Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            viewModel.login(usuario, claveLogin)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
             Row(
                 modifier = Modifier.padding(top = 12.dp),
@@ -201,7 +246,10 @@ fun PantallaAutenticacion(onAuthenticated: () -> Unit) {
                     color = SoftInk,
                     fontSize = 13.sp
                 )
-                TextButton(onClick = { estaRegistrando = !estaRegistrando }) {
+                TextButton(onClick = { 
+                    estaRegistrando = !estaRegistrando 
+                    viewModel.resetState()
+                }) {
                     Text(if (estaRegistrando) "Iniciar sesión" else "Crear cuenta", color = Marca, fontWeight = FontWeight.Bold)
                 }
             }
