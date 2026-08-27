@@ -4,7 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.creacionesnormita.mobile.core.model.Producto
-import com.creacionesnormita.mobile.data.SupabaseClient
+import com.creacionesnormita.mobile.core.network.SupabaseClient
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
