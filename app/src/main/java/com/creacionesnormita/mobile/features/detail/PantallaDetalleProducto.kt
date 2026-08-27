@@ -1,7 +1,5 @@
 package com.creacionesnormita.mobile.features.detail
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,12 +32,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.creacionesnormita.mobile.controller.ProductoController
-import com.creacionesnormita.mobile.core.Constantes
 import com.creacionesnormita.mobile.core.design.Ink
 import com.creacionesnormita.mobile.core.design.Line
 import com.creacionesnormita.mobile.core.design.Marca
@@ -49,7 +46,6 @@ import com.creacionesnormita.mobile.core.model.Producto
 import com.creacionesnormita.mobile.core.model.Talla
 import com.creacionesnormita.mobile.ui.components.ActionButton
 import com.creacionesnormita.mobile.ui.components.AutoCarousel
-import java.net.URLEncoder
 
 @Composable
 fun PantallaDetalleProducto(productoId: Int, onBack: () -> Unit) {
@@ -119,7 +115,6 @@ private fun DetalleHeader(titulo: String, onBack: () -> Unit) {
 @Composable
 private fun DetalleContenido(producto: Producto) {
     var tallaSeleccionada by remember { mutableStateOf<Talla?>(null) }
-    val context = LocalContext.current
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -183,7 +178,8 @@ private fun DetalleContenido(producto: Producto) {
                                 talla.name,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (disponible) Ink else Line
+                                color = if (disponible) Ink else Line,
+                                textDecoration = if (disponible) null else TextDecoration.LineThrough
                             )
                         }
                     }
@@ -199,29 +195,35 @@ private fun DetalleContenido(producto: Producto) {
                         modifier = Modifier.padding(top = 6.dp)
                     )
                 }
+
+                val hayAlgunaTallaConStock = producto.stockPorTalla.any { it.stock > 0 }
+                if (!hayAlgunaTallaConStock) {
+                    Row(
+                        modifier = Modifier
+                            .padding(top = 10.dp)
+                            .fillMaxWidth()
+                            .background(Marca.copy(alpha = .08f), RoundedCornerShape(10.dp))
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "Este vestido no tiene stock disponible en este momento. Escríbenos para consultar tiempos de confección a medida.",
+                            fontSize = 11.sp,
+                            color = Marca
+                        )
+                    }
+                }
             }
         }
         item {
             ActionButton(
-                text = "Cotizar por WhatsApp",
+                text = "Agregar a la lista",
                 onClick = {
-                    val mensaje = construirMensajeWhatsApp(producto, tallaSeleccionada)
-                    val uri = Uri.parse(
-                        "https://wa.me/${Constantes.WHATSAPP_NUMERO}?text=${URLEncoder.encode(mensaje, "UTF-8")}"
-                    )
-                    context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                    // TODO: conectar con la sección de Cotizar cuando esté lista.
+                    // Debería agregar (producto, talla seleccionada) a la lista de cotización.
                 },
                 modifier = Modifier.fillMaxWidth()
             )
         }
-    }
-}
-
-private fun construirMensajeWhatsApp(producto: Producto, talla: Talla?): String {
-    return buildString {
-        append("¡Hola! Me interesa cotizar este vestido:\n\n")
-        append("Vestido: ${producto.nombre}\n")
-        if (talla != null) append("Talla: ${talla.name}\n")
-        append("Precio: $${producto.precio}\n")
     }
 }
