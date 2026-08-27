@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -67,6 +68,7 @@ import com.creacionesnormita.mobile.core.design.Ink
 import com.creacionesnormita.mobile.core.design.Line
 import com.creacionesnormita.mobile.core.design.Marca
 import com.creacionesnormita.mobile.core.design.Paper
+import com.creacionesnormita.mobile.core.design.Sage
 import com.creacionesnormita.mobile.core.design.SoftInk
 import com.creacionesnormita.mobile.core.model.Producto
 import com.creacionesnormita.mobile.core.sample.serviciosDestacados
@@ -124,6 +126,7 @@ private fun AppHeader(onMenuClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.White)
+            .statusBarsPadding()
     ) {
         Row(
             modifier = Modifier
@@ -315,6 +318,9 @@ private fun CollectionContent(onProductoClick: (Int) -> Unit) {
 
 @Composable
 private fun DressCard(producto: Producto, onClick: () -> Unit) {
+    val stockTotal = producto.stockPorTalla.sumOf { it.stock }
+    val hayStock = producto.disponible && stockTotal > 0
+
     Column(modifier = Modifier.clickable(onClick = onClick)) {
         AsyncImage(
             model = producto.imagenes.firstOrNull(),
@@ -333,8 +339,14 @@ private fun DressCard(producto: Producto, onClick: () -> Unit) {
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(top = 8.dp)
         )
+        Text(
+            "$${producto.precio}",
+            color = Marca,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(top = 2.dp)
+        )
         StatPill(
-            text = if (producto.disponible) "Disponible ahora" else "Agotado",
+            text = if (hayStock) "Disponible ahora" else "Agotado",
             modifier = Modifier.padding(top = 8.dp)
         )
     }
