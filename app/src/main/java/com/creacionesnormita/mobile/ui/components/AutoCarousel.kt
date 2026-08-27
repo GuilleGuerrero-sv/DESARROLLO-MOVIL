@@ -10,12 +10,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -32,6 +34,7 @@ fun AutoCarousel(
     imagenes: List<String>,
     modifier: Modifier = Modifier,
     intervaloMs: Long = 3500L,
+    autoAvanzar: Boolean = true,
 ) {
     if (imagenes.isEmpty()) {
         WireImage("Sin imágenes todavía", modifier = modifier)
@@ -42,7 +45,8 @@ fun AutoCarousel(
 
     // Avanza automáticamente, pero respeta al usuario: si el usuario está
     // arrastrando el carrusel, no interfiere hasta que suelte.
-    LaunchedEffect(pagerState, imagenes.size) {
+    LaunchedEffect(pagerState, imagenes.size, autoAvanzar) {
+        if (!autoAvanzar) return@LaunchedEffect
         while (true) {
             delay(intervaloMs)
             if (!pagerState.isScrollInProgress && imagenes.size > 1) {

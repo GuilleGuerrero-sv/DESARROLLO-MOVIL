@@ -2,6 +2,7 @@ package com.creacionesnormita.mobile.features.main
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,10 +54,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
 import com.creacionesnormita.mobile.controller.ProductoController
 import com.creacionesnormita.mobile.core.design.Blush
 import com.creacionesnormita.mobile.core.design.Gold
@@ -64,10 +67,9 @@ import com.creacionesnormita.mobile.core.design.Ink
 import com.creacionesnormita.mobile.core.design.Line
 import com.creacionesnormita.mobile.core.design.Marca
 import com.creacionesnormita.mobile.core.design.Paper
-import com.creacionesnormita.mobile.core.design.Sage
 import com.creacionesnormita.mobile.core.design.SoftInk
+import com.creacionesnormita.mobile.core.model.Producto
 import com.creacionesnormita.mobile.core.sample.serviciosDestacados
-import com.creacionesnormita.mobile.core.sample.vestidos
 import com.creacionesnormita.mobile.ui.components.ActionButton
 import com.creacionesnormita.mobile.ui.components.AutoCarousel
 import com.creacionesnormita.mobile.ui.components.BrandMark
@@ -85,7 +87,7 @@ private enum class MainTab(val label: String, val icon: ImageVector) {
 }
 
 @Composable
-fun PantallaPrincipal(onLogout: () -> Unit) {
+fun PantallaPrincipal(onLogout: () -> Unit, onProductoClick: (Int) -> Unit) {
     var selectedTab by rememberSaveable { mutableStateOf(MainTab.Home) }
     var showMenu by rememberSaveable { mutableStateOf(false) }
 
@@ -98,8 +100,12 @@ fun PantallaPrincipal(onLogout: () -> Unit) {
     ) { padding ->
         Box(modifier = Modifier.padding(padding)) {
             when (selectedTab) {
-                MainTab.Home -> HomeContent(onGoCollection = { selectedTab = MainTab.Collection }, onGoAppointments = { selectedTab = MainTab.Appointments })
-                MainTab.Collection -> CollectionContent()
+                MainTab.Home -> HomeContent(
+                    onGoCollection = { selectedTab = MainTab.Collection },
+                    onGoAppointments = { selectedTab = MainTab.Appointments },
+                    onProductoClick = onProductoClick
+                )
+                MainTab.Collection -> CollectionContent(onProductoClick = onProductoClick)
                 MainTab.Quote -> QuoteContent()
                 MainTab.Appointments -> AppointmentContent()
                 MainTab.Account -> AccountContent(onLogout = onLogout)
@@ -140,7 +146,11 @@ private fun AppHeader(onMenuClick: () -> Unit) {
 }
 
 @Composable
-private fun HomeContent(onGoCollection: () -> Unit, onGoAppointments: () -> Unit) {
+private fun HomeContent(
+    onGoCollection: () -> Unit,
+    onGoAppointments: () -> Unit,
+    onProductoClick: (Int) -> Unit
+) {
     // Controller (MVC): maneja la carga del vestido del día desde Supabase.
     val productoController = remember { ProductoController() }
 
@@ -164,16 +174,19 @@ private fun HomeContent(onGoCollection: () -> Unit, onGoAppointments: () -> Unit
             }
         }
         item {
+            val vestido = productoController.vestidoDelDia
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(.98f)
                     .clip(RoundedCornerShape(topStart = 140.dp, topEnd = 140.dp, bottomStart = 22.dp, bottomEnd = 22.dp))
                     .border(1.dp, Ink, RoundedCornerShape(topStart = 140.dp, topEnd = 140.dp, bottomStart = 22.dp, bottomEnd = 22.dp))
-                    .background(Color.White),
+                    .background(Color.White)
+                    .then(
+                        if (vestido != null) Modifier.clickable { onProductoClick(vestido.id) } else Modifier
+                    ),
                 contentAlignment = Alignment.Center
             ) {
-                val vestido = productoController.vestidoDelDia
                 when {
                     productoController.cargando -> {
                         Text("Cargando vestido del día...", color = SoftInk, fontSize = 12.sp)
@@ -260,39 +273,70 @@ private fun HomeContent(onGoCollection: () -> Unit, onGoAppointments: () -> Unit
 }
 
 @Composable
-private fun CollectionContent() {
+private fun CollectionContent(onProductoClick: (Int) -> Unit) {
+    // Controller (MVC): maneja la carga de la lista completa de productos disponibles.
+    val productoController = remember { ProductoController() }
+
+    LaunchedEffect(Unit) {
+        productoController.cargarProductos()
+    }
+
     Column(modifier = Modifier.fillMaxSize().padding(18.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            StatPill("Todos · ${vestidos.size}")
+            StatPill("Todos · ${productoController.productos.size}")
             StatPill("Disponible ahora")
             StatPill("A tu medida")
         }
         Spacer(Modifier.height(16.dp))
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(vestidos) { vestido ->
-                DressCard(name = vestido.nombre, status = vestido.estado)
+        when {
+            productoController.cargandoLista -> {
+                Text("Cargando colección...", color = SoftInk, fontSize = 12.sp)
+            }
+            productoController.errorLista != null -> {
+                Text("No se pudo cargar la colección: ${productoController.errorLista}", color = SoftInk, fontSize = 12.sp)
+            }
+            productoController.productos.isEmpty() -> {
+                Text("Aún no hay productos publicados", color = SoftInk, fontSize = 12.sp)
+            }
+            else -> {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(productoController.productos) { producto ->
+                        DressCard(producto = producto, onClick = { onProductoClick(producto.id) })
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun DressCard(name: String, status: String) {
-    Column {
-        WireImage(label = name, modifier = Modifier.fillMaxWidth().aspectRatio(.82f))
-        Box(
+private fun DressCard(producto: Producto, onClick: () -> Unit) {
+    Column(modifier = Modifier.clickable(onClick = onClick)) {
+        AsyncImage(
+            model = producto.imagenes.firstOrNull(),
+            contentDescription = producto.nombre,
+            contentScale = ContentScale.Crop,
             modifier = Modifier
-                .padding(top = 8.dp)
-                .fillMaxWidth(.82f)
-                .height(7.dp)
-                .clip(RoundedCornerShape(5.dp))
-                .background(Line)
+                .fillMaxWidth()
+                .aspectRatio(.82f)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.White)
         )
-        StatPill(text = status, modifier = Modifier.padding(top = 8.dp))
+        Text(
+            producto.nombre,
+            color = SoftInk,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+        StatPill(
+            text = if (producto.disponible) "Disponible ahora" else "Agotado",
+            modifier = Modifier.padding(top = 8.dp)
+        )
     }
 }
 
