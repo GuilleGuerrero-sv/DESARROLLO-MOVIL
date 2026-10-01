@@ -1,5 +1,6 @@
 package com.creacionesnormita.mobile.features.main
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,25 +22,38 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AdminPanelSettings
+import androidx.compose.material.icons.outlined.Badge
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Inventory
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -48,6 +62,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -56,11 +71,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.creacionesnormita.mobile.controller.PerfilController
 import com.creacionesnormita.mobile.controller.ProductoController
 import com.creacionesnormita.mobile.core.design.Blush
 import com.creacionesnormita.mobile.core.design.Gold
@@ -70,6 +88,7 @@ import com.creacionesnormita.mobile.core.design.Marca
 import com.creacionesnormita.mobile.core.design.Paper
 import com.creacionesnormita.mobile.core.design.Sage
 import com.creacionesnormita.mobile.core.design.SoftInk
+import com.creacionesnormita.mobile.core.model.Perfil
 import com.creacionesnormita.mobile.core.model.Producto
 import com.creacionesnormita.mobile.core.sample.serviciosDestacados
 import com.creacionesnormita.mobile.ui.components.ActionButton
@@ -79,6 +98,7 @@ import com.creacionesnormita.mobile.ui.components.PlaceholderLines
 import com.creacionesnormita.mobile.ui.components.SectionDivider
 import com.creacionesnormita.mobile.ui.components.StatPill
 import com.creacionesnormita.mobile.ui.components.WireImage
+import kotlinx.coroutines.launch
 
 private enum class MainTab(val label: String, val icon: ImageVector) {
     Home("Inicio", Icons.Outlined.Home),
@@ -92,6 +112,15 @@ private enum class MainTab(val label: String, val icon: ImageVector) {
 fun PantallaPrincipal(onLogout: () -> Unit, onProductoClick: (Int) -> Unit) {
     var selectedTab by rememberSaveable { mutableStateOf(MainTab.Home) }
     var showMenu by rememberSaveable { mutableStateOf(false) }
+
+    val perfilController = remember { PerfilController() }
+
+    var showGestionCatalogo by rememberSaveable { mutableStateOf(false) }
+    var showGestionUsuarios by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        perfilController.cargarPerfilActual()
+    }
 
     Scaffold(
         topBar = { AppHeader(onMenuClick = { showMenu = true }) },
@@ -110,11 +139,37 @@ fun PantallaPrincipal(onLogout: () -> Unit, onProductoClick: (Int) -> Unit) {
                 MainTab.Collection -> CollectionContent(onProductoClick = onProductoClick)
                 MainTab.Quote -> QuoteContent()
                 MainTab.Appointments -> AppointmentContent()
-                MainTab.Account -> AccountContent(onLogout = onLogout)
+                MainTab.Account -> AccountContent(
+                    perfilController = perfilController,
+                    onLogout = onLogout
+                )
             }
 
             if (showMenu) {
-                DrawerOverlay(onClose = { showMenu = false })
+                DrawerOverlay(
+                    perfil = perfilController.perfilActual,
+                    userEmail = perfilController.userEmail,
+                    onClose = { showMenu = false },
+                    onOpenGestionCatalogo = {
+                        showMenu = false
+                        showGestionCatalogo = true
+                    },
+                    onOpenGestionUsuarios = {
+                        showMenu = false
+                        showGestionUsuarios = true
+                    }
+                )
+            }
+
+            if (showGestionCatalogo) {
+                GestionCatalogoDialog(onClose = { showGestionCatalogo = false })
+            }
+
+            if (showGestionUsuarios) {
+                GestionUsuariosDialog(
+                    perfilController = perfilController,
+                    onClose = { showGestionUsuarios = false }
+                )
             }
         }
     }
@@ -154,14 +209,12 @@ private fun HomeContent(
     onGoAppointments: () -> Unit,
     onProductoClick: (Int) -> Unit
 ) {
-    // Controller (MVC): maneja la carga del vestido del día desde Supabase.
     val productoController = remember { ProductoController() }
 
     LaunchedEffect(Unit) {
         productoController.cargarVestidoDelDia()
     }
 
-    // Esta primera pantalla sigue el mockup: bienvenida, vestido destacado y accesos rápidos.
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(18.dp),
@@ -277,7 +330,6 @@ private fun HomeContent(
 
 @Composable
 private fun CollectionContent(onProductoClick: (Int) -> Unit) {
-    // Controller (MVC): maneja la carga de la lista completa de productos disponibles.
     val productoController = remember { ProductoController() }
 
     LaunchedEffect(Unit) {
@@ -354,7 +406,6 @@ private fun DressCard(producto: Producto, onClick: () -> Unit) {
 
 @Composable
 private fun QuoteContent() {
-    // La cotización todavía usa datos de muestra; luego se conectará con productos reales.
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(18.dp),
@@ -388,7 +439,7 @@ private fun QuoteContent() {
 }
 
 @Composable
-private fun QuoteField(label: String, modifier: Modifier = Modifier, minHeight: androidx.compose.ui.unit.Dp = 54.dp) {
+private fun QuoteField(label: String, modifier: Modifier = Modifier, minHeight: Dp = 54.dp) {
     Column(
         modifier = modifier
             .border(1.dp, Line, RoundedCornerShape(12.dp))
@@ -435,75 +486,336 @@ private fun AppointmentContent() {
 }
 
 @Composable
-private fun AccountContent(onLogout: () -> Unit) {
+private fun AccountContent(
+    perfilController: PerfilController,
+    onLogout: () -> Unit
+) {
+    val perfil = perfilController.perfilActual
+    val context = LocalContext.current
+    var showEditDialog by rememberSaveable { mutableStateOf(false) }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(18.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Box(
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(20.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
                     modifier = Modifier
-                        .size(72.dp)
-                        .clip(RoundedCornerShape(36.dp))
-                        .background(Blush),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Icon(Icons.Outlined.Person, contentDescription = null, tint = Ink)
+                    Box(
+                        modifier = Modifier
+                            .size(76.dp)
+                            .clip(CircleShape)
+                            .background(Blush),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (!perfil?.foto_url.isNullOrBlank()) {
+                            AsyncImage(
+                                model = perfil.foto_url,
+                                contentDescription = "Foto de perfil",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize().clip(CircleShape)
+                            )
+                        } else {
+                            Icon(Icons.Outlined.Person, contentDescription = null, tint = Ink, modifier = Modifier.size(36.dp))
+                        }
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = perfil?.nombre ?: "Cargando usuario...",
+                            color = Ink,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = perfilController.userEmail,
+                            color = SoftInk,
+                            fontSize = 12.sp
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 6.dp)
+                        ) {
+                            Icon(Icons.Outlined.Phone, contentDescription = null, tint = Marca, modifier = Modifier.size(14.dp))
+                            Text(
+                                text = perfil?.celular?.ifBlank { "WhatsApp no registrado" } ?: "Sin número",
+                                color = SoftInk,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
+                        }
+
+                        // Role Badge
+                        RoleBadge(rol = perfil?.rol ?: Perfil.ROL_CLIENTE, modifier = Modifier.padding(top = 8.dp))
+                    }
+
+                    IconButton(onClick = { showEditDialog = true }) {
+                        Icon(Icons.Outlined.Edit, contentDescription = "Editar Perfil", tint = Marca)
+                    }
                 }
-                PlaceholderLines(modifier = Modifier.weight(1f), widths = listOf(.58f, .85f))
             }
         }
+
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatPill("Perfil", modifier = Modifier.weight(1f))
-                StatPill("Favoritos", modifier = Modifier.weight(1f))
-                StatPill("Cotizaciones", modifier = Modifier.weight(1f))
+                StatPill("Mi Perfil", modifier = Modifier.weight(1f))
+                StatPill("Mis Favoritos", modifier = Modifier.weight(1f))
+                StatPill("Mis Cotizaciones", modifier = Modifier.weight(1f))
             }
         }
-        item { QuoteField("Nombre", modifier = Modifier.fillMaxWidth()) }
-        item { QuoteField("WhatsApp", modifier = Modifier.fillMaxWidth()) }
-        item { SectionDivider() }
+
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                repeat(3) { WireImage("Favorito", modifier = Modifier.weight(1f).aspectRatio(1f)) }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.White)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("Información de la cuenta", fontWeight = FontWeight.Bold, color = Ink, fontSize = 14.sp)
+                SectionDivider()
+                Text("Nombre: ${perfil?.nombre ?: "-"}", fontSize = 13.sp, color = SoftInk)
+                Text("WhatsApp / Celular: ${perfil?.celular ?: "-"}", fontSize = 13.sp, color = SoftInk)
+                Text("Otro contacto: ${perfil?.otro_contacto ?: "No especificado"}", fontSize = 13.sp, color = SoftInk)
+                Text("Fecha Nacimiento: ${perfil?.fecha_nacimiento ?: "-"}", fontSize = 13.sp, color = SoftInk)
+                Text("Rol autorizado: ${perfil?.rol ?: Perfil.ROL_CLIENTE}", fontSize = 13.sp, color = Marca, fontWeight = FontWeight.Bold)
             }
         }
-        item { ActionButton(text = "Cerrar sesión", onClick = onLogout, modifier = Modifier.fillMaxWidth(), filled = false) }
+
+        item {
+            ActionButton(
+                text = "Editar datos autorizados",
+                onClick = { showEditDialog = true },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        item {
+            ActionButton(
+                text = "Cerrar sesión",
+                onClick = onLogout,
+                modifier = Modifier.fillMaxWidth(),
+                filled = false
+            )
+        }
+    }
+
+    val scope = rememberCoroutineScope()
+
+    if (showEditDialog) {
+        EditarPerfilDialog(
+            perfil = perfil,
+            onDismiss = { showEditDialog = false },
+            onSave = { nuevoNombre, nuevoCelular, nuevoOtro, nuevaFoto ->
+                scope.launch {
+                    val ok = perfilController.actualizarPerfil(
+                        nombre = nuevoNombre,
+                        celular = nuevoCelular,
+                        otroContacto = nuevoOtro,
+                        fotoUrl = nuevaFoto
+                    )
+                    if (ok) {
+                        Toast.makeText(context, "Perfil actualizado correctamente", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                showEditDialog = false
+            }
+        )
     }
 }
 
 @Composable
-private fun DrawerOverlay(onClose: () -> Unit) {
+private fun RoleBadge(rol: String, modifier: Modifier = Modifier) {
+    val (bgColor, textColor) = when {
+        rol.equals(Perfil.ROL_ADMINISTRADOR, ignoreCase = true) || rol.equals("admin", ignoreCase = true) -> Color(0xFFC59B27) to Color.White
+        rol.equals(Perfil.ROL_EMPLEADO, ignoreCase = true) || rol.equals("empleado", ignoreCase = true) -> Blush to Ink
+        else -> Sage to Ink
+    }
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(bgColor)
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = rol.uppercase(),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = textColor
+        )
+    }
+}
+
+@Composable
+private fun EditarPerfilDialog(
+    perfil: Perfil?,
+    onDismiss: () -> Unit,
+    onSave: (String, String, String, String) -> Unit
+) {
+    var nombre by rememberSaveable { mutableStateOf(perfil?.nombre.orEmpty()) }
+    var celular by rememberSaveable { mutableStateOf(perfil?.celular.orEmpty()) }
+    var otroContacto by rememberSaveable { mutableStateOf(perfil?.otro_contacto.orEmpty()) }
+    var fotoUrl by rememberSaveable { mutableStateOf(perfil?.foto_url.orEmpty()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Editar perfil", fontWeight = FontWeight.Bold, color = Ink) },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = nombre,
+                    onValueChange = { nombre = it },
+                    label = { Text("Nombre completo*") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = celular,
+                    onValueChange = { celular = it },
+                    label = { Text("WhatsApp / Celular*") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = otroContacto,
+                    onValueChange = { otroContacto = it },
+                    label = { Text("Otro contacto (opcional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = fotoUrl,
+                    onValueChange = { fotoUrl = it },
+                    label = { Text("URL de foto de perfil (opcional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(nombre, celular, otroContacto, fotoUrl) }
+            ) {
+                Text("Guardar", color = Marca, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar", color = SoftInk)
+            }
+        }
+    )
+}
+
+@Composable
+private fun DrawerOverlay(
+    perfil: Perfil?,
+    userEmail: String,
+    onClose: () -> Unit,
+    onOpenGestionCatalogo: () -> Unit,
+    onOpenGestionUsuarios: () -> Unit
+) {
+    val esEmpleadoOrAdmin = perfil?.esEmpleado == true
+    val esAdmin = perfil?.esAdmin == true
+
     Row(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
-                .weight(.82f)
+                .weight(.85f)
                 .fillMaxSize()
                 .background(Color.White)
+                .verticalScroll(rememberScrollState())
                 .padding(18.dp)
         ) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 IconButton(onClick = onClose) {
                     Icon(Icons.Outlined.Close, contentDescription = "Cerrar", tint = Ink)
                 }
                 BrandMark()
                 Spacer(Modifier.width(48.dp))
             }
-            Spacer(Modifier.height(20.dp))
-            listOf("Colección", "Citas", "Cotizaciones", "Pedidos especiales", "Preguntas frecuentes", "WhatsApp directo").forEachIndexed { index, label ->
+
+            Spacer(Modifier.height(16.dp))
+
+            // User Info Header in Drawer
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Blush.copy(alpha = 0.5f)),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(Blush),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (!perfil?.foto_url.isNullOrBlank()) {
+                            AsyncImage(
+                                model = perfil?.foto_url,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize().clip(CircleShape)
+                            )
+                        } else {
+                            Icon(Icons.Outlined.Person, contentDescription = null, tint = Ink)
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            perfil?.nombre ?: "Cliente",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = Ink
+                        )
+                        RoleBadge(rol = perfil?.rol ?: Perfil.ROL_CLIENTE)
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
+
+            // Secciones Estándar
+            val opcionesStandard = listOf("Colección", "Citas", "Cotizaciones", "Preguntas frecuentes", "WhatsApp directo")
+            opcionesStandard.forEachIndexed { index, label ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 12.dp),
+                        .clickable { onClose() }
+                        .padding(vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = when (index) {
-                            0 -> Icons.AutoMirrored.Outlined.ReceiptLong
+                            0 -> Icons.Outlined.StarBorder
                             1 -> Icons.Outlined.CalendarMonth
-                            2 -> Icons.Outlined.FavoriteBorder
+                            2 -> Icons.AutoMirrored.Outlined.ReceiptLong
                             else -> Icons.AutoMirrored.Outlined.Send
                         },
                         contentDescription = null,
@@ -513,22 +825,217 @@ private fun DrawerOverlay(onClose: () -> Unit) {
                     Text(label, color = SoftInk, fontSize = 14.sp, modifier = Modifier.padding(start = 16.dp))
                 }
             }
-            Spacer(Modifier.weight(1f))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatPill("ES")
-                StatPill("EN")
-                Spacer(Modifier.weight(1f))
-                StatPill("Tema")
+
+            // --- Secciones por Rol ---
+            if (esEmpleadoOrAdmin) {
+                SectionDivider()
+                Text(
+                    "GESTIÓN DE EMPLEADO",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Marca,
+                    modifier = Modifier.padding(top = 10.dp, bottom = 6.dp)
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenGestionCatalogo() }
+                        .padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Outlined.Inventory, contentDescription = null, tint = Marca, modifier = Modifier.size(20.dp))
+                    Text("Gestión de Catálogo", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 16.dp))
+                }
             }
-            ActionButton(text = "WhatsApp directo", onClick = {}, modifier = Modifier.padding(top = 22.dp).fillMaxWidth(), filled = false)
+
+            if (esAdmin) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenGestionUsuarios() }
+                        .padding(vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Outlined.AdminPanelSettings, contentDescription = null, tint = Gold, modifier = Modifier.size(20.dp))
+                    Text("Gestión de Clientes y Usuarios", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 16.dp))
+                }
+            }
+
+            Spacer(Modifier.weight(1f))
+            ActionButton(text = "WhatsApp directo", onClick = {}, modifier = Modifier.fillMaxWidth(), filled = false)
         }
         Box(
             modifier = Modifier
-                .weight(.18f)
+                .weight(.15f)
                 .fillMaxSize()
                 .background(Gold.copy(alpha = .28f))
+                .clickable { onClose() }
         )
     }
+}
+
+@Composable
+private fun GestionCatalogoDialog(onClose: () -> Unit) {
+    val productoController = remember { ProductoController() }
+
+    LaunchedEffect(Unit) {
+        productoController.cargarProductos()
+    }
+
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Outlined.Inventory, contentDescription = null, tint = Marca)
+                Text("Gestión de Catálogo", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Ink)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(360.dp)
+            ) {
+                Text(
+                    "Vista de Empleado y Administrador para actualizar stock y vestidos.",
+                    fontSize = 12.sp,
+                    color = SoftInk,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                if (productoController.cargandoLista) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Cargando catálogo...", fontSize = 12.sp, color = SoftInk)
+                    }
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(productoController.productos) { producto ->
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    AsyncImage(
+                                        model = producto.imagenes.firstOrNull(),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(producto.nombre, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        Text("$${producto.precio}", color = Marca, fontSize = 11.sp)
+                                    }
+                                    StatPill(if (producto.disponible) "Disponible" else "Agotado")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onClose) {
+                Text("Cerrar", color = Marca, fontWeight = FontWeight.Bold)
+            }
+        }
+    )
+}
+
+@Composable
+private fun GestionUsuariosDialog(
+    perfilController: PerfilController,
+    onClose: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        perfilController.cargarTodosLosUsuarios()
+    }
+
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Outlined.AdminPanelSettings, contentDescription = null, tint = Gold)
+                Text("Gestión de Clientes y Roles", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Ink)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(380.dp)
+            ) {
+                Text(
+                    "Administración de permisos y asignación de roles de usuario.",
+                    fontSize = 12.sp,
+                    color = SoftInk,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                if (perfilController.cargandoUsuarios) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Cargando lista de usuarios...", fontSize = 12.sp, color = SoftInk)
+                    }
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(perfilController.usuariosRegistrados) { usuario ->
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(usuario.nombre, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text("Tel: ${usuario.celular}", fontSize = 11.sp, color = SoftInk)
+                                    RoleBadge(rol = usuario.rol, modifier = Modifier.padding(vertical = 6.dp))
+
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        listOf(Perfil.ROL_CLIENTE, Perfil.ROL_EMPLEADO, Perfil.ROL_ADMINISTRADOR).forEach { rolOpcion ->
+                                            TextButton(
+                                                onClick = {
+                                                    scope.launch {
+                                                        val ok = perfilController.cambiarRolUsuario(usuario.id, rolOpcion)
+                                                        if (ok) {
+                                                            Toast.makeText(context, "Rol cambiado a $rolOpcion", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    }
+                                                },
+                                                modifier = Modifier.weight(1f),
+                                                contentPadding = PaddingValues(0.dp)
+                                            ) {
+                                                Text(
+                                                    rolOpcion.take(5),
+                                                    fontSize = 10.sp,
+                                                    fontWeight = if (usuario.rol == rolOpcion) FontWeight.Bold else FontWeight.Normal,
+                                                    color = if (usuario.rol == rolOpcion) Marca else SoftInk
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onClose) {
+                Text("Cerrar", color = Marca, fontWeight = FontWeight.Bold)
+            }
+        }
+    )
 }
 
 @Composable
