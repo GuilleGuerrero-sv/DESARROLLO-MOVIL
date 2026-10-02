@@ -441,7 +441,7 @@ fun PantallaAutenticacion(
                         text = "Google",
                         icon = Icons.Outlined.AccountCircle,
                         onClick = {
-                            Toast.makeText(context, "Iniciando sesión con Google...", Toast.LENGTH_SHORT).show()
+                            viewModel.loginWithGoogle()
                         },
                         modifier = Modifier.weight(1f)
                     )
@@ -449,7 +449,7 @@ fun PantallaAutenticacion(
                         text = "Facebook",
                         icon = Icons.Outlined.Share,
                         onClick = {
-                            Toast.makeText(context, "Iniciando sesión con Facebook...", Toast.LENGTH_SHORT).show()
+                            viewModel.loginWithFacebook()
                         },
                         modifier = Modifier.weight(1f)
                     )
@@ -457,7 +457,7 @@ fun PantallaAutenticacion(
                         text = "X",
                         icon = Icons.Outlined.AlternateEmail,
                         onClick = {
-                            Toast.makeText(context, "Iniciando sesión con X (Twitter)...", Toast.LENGTH_SHORT).show()
+                            viewModel.loginWithTwitter()
                         },
                         modifier = Modifier.weight(1f)
                     )

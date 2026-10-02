@@ -7,6 +7,9 @@ import androidx.lifecycle.viewModelScope
 import com.creacionesnormita.mobile.core.model.Perfil
 import com.creacionesnormita.mobile.core.network.SupabaseClient
 import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.providers.Facebook
+import io.github.jan.supabase.auth.providers.Google
+import io.github.jan.supabase.auth.providers.Twitter
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.launch
@@ -184,11 +187,17 @@ class AuthViewModel : ViewModel() {
                 "Sin conexión a internet o la URL de Supabase es inaccesible."
             }
 
-            // Error de autorización / token expirado
+            // Error de autorización / token expirado o proveedor no configurado
             combined.contains("authorization") ||
             combined.contains("unauthorized") ||
             combined.contains("401") -> {
-                "Sesión de recuperación expirada o no autorizada. Por favor, solicita de nuevo el correo de recuperación."
+                "Acceso no autorizado. Para ingresar con redes sociales debes guardar el Client ID y Secret en tu panel de Supabase."
+            }
+
+            // Proveedor social no habilitado en Supabase
+            combined.contains("unsupported provider") ||
+            combined.contains("provider is not enabled") -> {
+                "El inicio de sesión con esta red social no ha sido activado en tu panel de Supabase aún."
             }
 
             // Si hay un mensaje explicativo retornado por Supabase, mostrarlo directamente
@@ -256,6 +265,57 @@ class AuthViewModel : ViewModel() {
                     this.password = nuevaPassword
                 }
                 _authState.value = AuthState.PasswordUpdateSuccess
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _authState.value = AuthState.Error(parseErrorMessage(e, isLogin = true))
+            }
+        }
+    }
+
+    fun loginWithGoogle() {
+        if (!SupabaseClient.isConfigured()) {
+            _authState.value = AuthState.Error("No se ha configurado la conexión a Supabase")
+            return
+        }
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            try {
+                SupabaseClient.client.auth.signInWith(Google, redirectUrl = "creacionesnormita://reset-password")
+                _authState.value = AuthState.Success
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _authState.value = AuthState.Error(parseErrorMessage(e, isLogin = true))
+            }
+        }
+    }
+
+    fun loginWithFacebook() {
+        if (!SupabaseClient.isConfigured()) {
+            _authState.value = AuthState.Error("No se ha configurado la conexión a Supabase")
+            return
+        }
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            try {
+                SupabaseClient.client.auth.signInWith(Facebook, redirectUrl = "creacionesnormita://reset-password")
+                _authState.value = AuthState.Success
+            } catch (e: Exception) {
+                e.printStackTrace()
+                _authState.value = AuthState.Error(parseErrorMessage(e, isLogin = true))
+            }
+        }
+    }
+
+    fun loginWithTwitter() {
+        if (!SupabaseClient.isConfigured()) {
+            _authState.value = AuthState.Error("No se ha configurado la conexión a Supabase")
+            return
+        }
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            try {
+                SupabaseClient.client.auth.signInWith(Twitter, redirectUrl = "creacionesnormita://reset-password")
+                _authState.value = AuthState.Success
             } catch (e: Exception) {
                 e.printStackTrace()
                 _authState.value = AuthState.Error(parseErrorMessage(e, isLogin = true))

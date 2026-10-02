@@ -132,8 +132,16 @@ fun PantallaPrincipal(onLogout: () -> Unit, onProductoClick: (Int) -> Unit) {
         perfilController.cargarPerfilActual()
     }
 
+    val perfil = perfilController.perfilActual
+    val esEmpleadoOrAdmin = perfil?.esEmpleado == true
+
     Scaffold(
-        topBar = { AppHeader(onMenuClick = { showMenu = true }) },
+        topBar = {
+            AppHeader(
+                mostrarMenu = esEmpleadoOrAdmin,
+                onMenuClick = { showMenu = true }
+            )
+        },
         bottomBar = {
             BottomNavBar(selectedTab = selectedTab, onSelected = { selectedTab = it })
         },
@@ -186,7 +194,7 @@ fun PantallaPrincipal(onLogout: () -> Unit, onProductoClick: (Int) -> Unit) {
 }
 
 @Composable
-private fun AppHeader(onMenuClick: () -> Unit) {
+private fun AppHeader(mostrarMenu: Boolean, onMenuClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -201,12 +209,22 @@ private fun AppHeader(onMenuClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            IconButton(onClick = onMenuClick) {
-                Icon(Icons.Outlined.Menu, contentDescription = "Menú", tint = Ink)
+            if (mostrarMenu) {
+                IconButton(onClick = onMenuClick) {
+                    Icon(Icons.Outlined.Menu, contentDescription = "Menú", tint = Ink)
+                }
+            } else {
+                Spacer(Modifier.width(48.dp))
             }
+
             BrandMark()
-            IconButton(onClick = onMenuClick) {
-                Icon(Icons.Outlined.MoreVert, contentDescription = "Más", tint = Ink)
+
+            if (mostrarMenu) {
+                IconButton(onClick = onMenuClick) {
+                    Icon(Icons.Outlined.MoreVert, contentDescription = "Más", tint = Ink)
+                }
+            } else {
+                Spacer(Modifier.width(48.dp))
             }
         }
         SectionDivider()
