@@ -227,8 +227,13 @@ private fun DetalleContenido(producto: Producto) {
                     enabled = talla != null,
                     onClick = {
                         if (talla != null) {
-                            CarritoController.agregar(producto, talla)
-                            Toast.makeText(context, "Agregado a tu lista de cotización", Toast.LENGTH_SHORT).show()
+                            val agregado = CarritoController.agregar(producto, talla)
+                            val mensaje = if (agregado) {
+                                "Agregado a tu lista de cotización"
+                            } else {
+                                "Ya tienes el máximo disponible de esta talla en tu lista"
+                            }
+                            Toast.makeText(context, mensaje, Toast.LENGTH_SHORT).show()
                         }
                     },
                     modifier = Modifier.fillMaxWidth()

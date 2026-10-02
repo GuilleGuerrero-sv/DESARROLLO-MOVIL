@@ -13,18 +13,33 @@ import com.creacionesnormita.mobile.core.model.Talla
 object CarritoController {
     val items = mutableStateListOf<ItemCotizacion>()
 
-    fun agregar(producto: Producto, talla: Talla) {
+    private fun stockDisponible(producto: Producto, talla: Talla): Int =
+        producto.stockPorTalla.firstOrNull { it.talla == talla }?.stock ?: 0
+
+    /** Devuelve false si ya se alcanzó el stock máximo para esa talla y no se agregó nada más. */
+    fun agregar(producto: Producto, talla: Talla): Boolean {
+        val maxStock = stockDisponible(producto, talla)
         val index = items.indexOfFirst { it.producto.id == producto.id && it.talla == talla }
+
         if (index >= 0) {
-            items[index] = items[index].copy(cantidad = items[index].cantidad + 1)
+            val actual = items[index]
+            if (actual.cantidad >= maxStock) return false
+            items[index] = actual.copy(cantidad = actual.cantidad + 1)
         } else {
+            if (maxStock <= 0) return false
             items.add(ItemCotizacion(producto, talla))
         }
+        return true
     }
 
-    fun incrementar(item: ItemCotizacion) {
+    /** Devuelve false si ya se alcanzó el stock máximo para esa talla. */
+    fun incrementar(item: ItemCotizacion): Boolean {
         val index = items.indexOf(item)
-        if (index >= 0) items[index] = item.copy(cantidad = item.cantidad + 1)
+        if (index < 0) return false
+        val maxStock = stockDisponible(item.producto, item.talla)
+        if (item.cantidad >= maxStock) return false
+        items[index] = item.copy(cantidad = item.cantidad + 1)
+        return true
     }
 
     fun decrementar(item: ItemCotizacion) {

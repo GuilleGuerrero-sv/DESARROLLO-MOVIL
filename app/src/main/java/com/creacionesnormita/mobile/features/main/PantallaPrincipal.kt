@@ -147,7 +147,7 @@ fun PantallaPrincipal(onLogout: () -> Unit, onProductoClick: (Int) -> Unit) {
                     onProductoClick = onProductoClick
                 )
                 MainTab.Collection -> CollectionContent(onProductoClick = onProductoClick)
-                MainTab.Quote -> QuoteContent()
+                MainTab.Quote -> QuoteContent(perfilController = perfilController)
                 MainTab.Appointments -> AppointmentContent()
                 MainTab.Account -> AccountContent(
                     perfilController = perfilController,
@@ -473,7 +473,7 @@ private fun DressCard(producto: Producto, onClick: () -> Unit) {
 }
 
 @Composable
-private fun QuoteContent() {
+private fun QuoteContent(perfilController: PerfilController) {
     val context = LocalContext.current
     val items = CarritoController.items
 
@@ -483,6 +483,19 @@ private fun QuoteContent() {
     var tipoEnvio by rememberSaveable { mutableStateOf("Nacional") }
     var fechaEvento by rememberSaveable { mutableStateOf("") }
     var notas by rememberSaveable { mutableStateOf("") }
+    var yaPrecargado by rememberSaveable { mutableStateOf(false) }
+
+    // Precarga una sola vez con los datos de la cuenta, apenas el perfil esté disponible.
+    // Después de eso, el usuario puede editarlos libremente sin que se vuelvan a sobreescribir.
+    LaunchedEffect(perfilController.perfilActual) {
+        val perfil = perfilController.perfilActual
+        if (perfil != null && !yaPrecargado) {
+            nombre = perfil.nombre
+            whatsapp = perfil.celular
+            email = perfilController.userEmail
+            yaPrecargado = true
+        }
+    }
 
     val puedeEnviar = items.isNotEmpty() && nombre.isNotBlank() && whatsapp.isNotBlank()
 
@@ -581,31 +594,48 @@ private fun QuoteContent() {
 
 @Composable
 private fun CarritoItemRow(item: ItemCotizacion) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        AsyncImage(
-            model = item.producto.imagenes.firstOrNull(),
-            contentDescription = item.producto.nombre,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(74.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(Color.White)
-        )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(item.producto.nombre, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Ink)
-            Text("Talla: ${item.talla.name} · $${item.producto.precio}", fontSize = 11.sp, color = SoftInk)
-        }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            IconButton(onClick = { CarritoController.decrementar(item) }, modifier = Modifier.size(28.dp)) {
-                Text("−", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
+    val stockMax = item.producto.stockPorTalla.firstOrNull { it.talla == item.talla }?.stock ?: 0
+    val enElLimite = item.cantidad >= stockMax
+
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            AsyncImage(
+                model = item.producto.imagenes.firstOrNull(),
+                contentDescription = item.producto.nombre,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(74.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.White)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(item.producto.nombre, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Ink)
+                Text("Talla: ${item.talla.name} · $${item.producto.precio}", fontSize = 11.sp, color = SoftInk)
             }
-            Text("${item.cantidad}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Ink)
-            IconButton(onClick = { CarritoController.incrementar(item) }, modifier = Modifier.size(28.dp)) {
-                Text("+", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                IconButton(onClick = { CarritoController.decrementar(item) }, modifier = Modifier.size(28.dp)) {
+                    Text("−", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
+                }
+                Text("${item.cantidad}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Ink)
+                IconButton(
+                    onClick = { CarritoController.incrementar(item) },
+                    enabled = !enElLimite,
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Text("+", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = if (enElLimite) Line else Ink)
+                }
+            }
+            IconButton(onClick = { CarritoController.quitar(item) }, modifier = Modifier.size(28.dp)) {
+                Icon(Icons.Outlined.Close, contentDescription = "Quitar", tint = SoftInk, modifier = Modifier.size(18.dp))
             }
         }
-        IconButton(onClick = { CarritoController.quitar(item) }, modifier = Modifier.size(28.dp)) {
-            Icon(Icons.Outlined.Close, contentDescription = "Quitar", tint = SoftInk, modifier = Modifier.size(18.dp))
+        if (enElLimite) {
+            Text(
+                "Solo quedan $stockMax disponibles en talla ${item.talla.name}",
+                fontSize = 10.sp,
+                color = Marca,
+                modifier = Modifier.padding(start = 86.dp, top = 2.dp)
+            )
         }
     }
 }
