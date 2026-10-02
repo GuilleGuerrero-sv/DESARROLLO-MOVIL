@@ -2,17 +2,16 @@ package com.creacionesnormita.mobile.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -34,10 +33,17 @@ import com.creacionesnormita.mobile.core.design.Marca
 import com.creacionesnormita.mobile.core.design.SoftInk
 
 @Composable
-fun ActionButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, filled: Boolean = true) {
+fun ActionButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    filled: Boolean = true,
+    enabled: Boolean = true,
+) {
     if (filled) {
         Button(
             onClick = onClick,
+            enabled = enabled,
             modifier = modifier.height(44.dp),
             shape = RoundedCornerShape(22.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Marca, contentColor = Color.White)
@@ -47,6 +53,7 @@ fun ActionButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifie
     } else {
         OutlinedButton(
             onClick = onClick,
+            enabled = enabled,
             modifier = modifier.height(44.dp),
             shape = RoundedCornerShape(22.dp),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = Ink)
@@ -117,4 +124,29 @@ fun SectionDivider(modifier: Modifier = Modifier) {
             .height(1.dp)
             .background(Line)
     )
+}
+
+/**
+ * Igual que StatPill visualmente, pero clickeable y con estado de selección.
+ * Se usa para filtros reales (Colección, tipo de envío en Cotizar), a diferencia
+ * de StatPill que es solo una etiqueta informativa estática.
+ */
+@Composable
+fun FilterChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (selected) Marca else Color.White)
+            .border(1.dp, if (selected) Marca else Line, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = if (selected) Color.White else SoftInk,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
 }

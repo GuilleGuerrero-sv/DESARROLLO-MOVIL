@@ -1,5 +1,6 @@
 package com.creacionesnormita.mobile.features.detail
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -32,10 +33,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.creacionesnormita.mobile.controller.CarritoController
 import com.creacionesnormita.mobile.controller.ProductoController
 import com.creacionesnormita.mobile.core.design.Ink
 import com.creacionesnormita.mobile.core.design.Line
@@ -115,6 +118,7 @@ private fun DetalleHeader(titulo: String, onBack: () -> Unit) {
 @Composable
 private fun DetalleContenido(producto: Producto) {
     var tallaSeleccionada by remember { mutableStateOf<Talla?>(null) }
+    val context = LocalContext.current
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -216,14 +220,28 @@ private fun DetalleContenido(producto: Producto) {
             }
         }
         item {
-            ActionButton(
-                text = "Agregar a la lista",
-                onClick = {
-                    // TODO: conectar con la sección de Cotizar cuando esté lista.
-                    // Debería agregar (producto, talla seleccionada) a la lista de cotización.
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
+            val talla = tallaSeleccionada
+            Column {
+                ActionButton(
+                    text = "Agregar a la lista",
+                    enabled = talla != null,
+                    onClick = {
+                        if (talla != null) {
+                            CarritoController.agregar(producto, talla)
+                            Toast.makeText(context, "Agregado a tu lista de cotización", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (talla == null) {
+                    Text(
+                        "Selecciona una talla para continuar",
+                        fontSize = 11.sp,
+                        color = SoftInk,
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
+                }
+            }
         }
     }
 }

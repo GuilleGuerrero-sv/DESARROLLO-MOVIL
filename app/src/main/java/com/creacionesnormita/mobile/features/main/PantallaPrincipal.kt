@@ -1,5 +1,7 @@
 package com.creacionesnormita.mobile.features.main
 
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,6 +25,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
@@ -54,6 +57,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -78,8 +82,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.creacionesnormita.mobile.controller.CarritoController
 import com.creacionesnormita.mobile.controller.PerfilController
 import com.creacionesnormita.mobile.controller.ProductoController
+import com.creacionesnormita.mobile.core.Constantes
 import com.creacionesnormita.mobile.core.design.Blush
 import com.creacionesnormita.mobile.core.design.Gold
 import com.creacionesnormita.mobile.core.design.Ink
@@ -88,17 +94,21 @@ import com.creacionesnormita.mobile.core.design.Marca
 import com.creacionesnormita.mobile.core.design.Paper
 import com.creacionesnormita.mobile.core.design.Sage
 import com.creacionesnormita.mobile.core.design.SoftInk
+import com.creacionesnormita.mobile.core.model.ItemCotizacion
 import com.creacionesnormita.mobile.core.model.Perfil
 import com.creacionesnormita.mobile.core.model.Producto
+import com.creacionesnormita.mobile.core.model.Talla
 import com.creacionesnormita.mobile.core.sample.serviciosDestacados
 import com.creacionesnormita.mobile.ui.components.ActionButton
 import com.creacionesnormita.mobile.ui.components.AutoCarousel
 import com.creacionesnormita.mobile.ui.components.BrandMark
+import com.creacionesnormita.mobile.ui.components.FilterChip
 import com.creacionesnormita.mobile.ui.components.PlaceholderLines
 import com.creacionesnormita.mobile.ui.components.SectionDivider
 import com.creacionesnormita.mobile.ui.components.StatPill
 import com.creacionesnormita.mobile.ui.components.WireImage
 import kotlinx.coroutines.launch
+import java.net.URLEncoder
 
 private enum class MainTab(val label: String, val icon: ImageVector) {
     Home("Inicio", Icons.Outlined.Home),
@@ -328,19 +338,74 @@ private fun HomeContent(
     }
 }
 
+/** Filtros combinables de Colección: 'Disponible ahora' + cualquier cantidad de tallas a la vez. */
+private sealed class FiltroColeccion {
+    data object Disponible : FiltroColeccion()
+    data class PorTalla(val talla: Talla) : FiltroColeccion()
+}
+
+private fun Producto.cumpleFiltros(filtros: Set<FiltroColeccion>): Boolean {
+    if (filtros.isEmpty()) return true // "Todos": sin filtros activos
+
+    val tallasPedidas = filtros.filterIsInstance<FiltroColeccion.PorTalla>().map { it.talla }
+    val pideDisponible = filtros.contains(FiltroColeccion.Disponible)
+
+    val cumpleTalla = tallasPedidas.isEmpty() || tallasPedidas.any { talla ->
+        (stockPorTalla.firstOrNull { it.talla == talla }?.stock ?: 0) > 0
+    }
+    val cumpleDisponible = !pideDisponible || stockPorTalla.sumOf { it.stock } > 0
+
+    return cumpleTalla && cumpleDisponible
+}
+
 @Composable
 private fun CollectionContent(onProductoClick: (Int) -> Unit) {
     val productoController = remember { ProductoController() }
+    var filtrosActivos by remember { mutableStateOf<Set<FiltroColeccion>>(emptySet()) }
 
     LaunchedEffect(Unit) {
         productoController.cargarProductos()
     }
 
+    val productosFiltrados = productoController.productos.filter { it.cumpleFiltros(filtrosActivos) }
+
     Column(modifier = Modifier.fillMaxSize().padding(18.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            StatPill("Todos · ${productoController.productos.size}")
-            StatPill("Disponible ahora")
-            StatPill("A tu medida")
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            FilterChip(
+                text = "Todos",
+                selected = filtrosActivos.isEmpty(),
+                onClick = { filtrosActivos = emptySet() }
+            )
+            FilterChip(
+                text = "Disponible ahora",
+                selected = filtrosActivos.contains(FiltroColeccion.Disponible),
+                onClick = {
+                    filtrosActivos = if (filtrosActivos.contains(FiltroColeccion.Disponible)) {
+                        filtrosActivos - FiltroColeccion.Disponible
+                    } else {
+                        filtrosActivos + FiltroColeccion.Disponible
+                    }
+                }
+            )
+            Talla.entries.forEach { talla ->
+                val filtroTalla = FiltroColeccion.PorTalla(talla)
+                FilterChip(
+                    text = talla.name,
+                    selected = filtrosActivos.contains(filtroTalla),
+                    onClick = {
+                        filtrosActivos = if (filtrosActivos.contains(filtroTalla)) {
+                            filtrosActivos - filtroTalla
+                        } else {
+                            filtrosActivos + filtroTalla
+                        }
+                    }
+                )
+            }
         }
         Spacer(Modifier.height(16.dp))
         when {
@@ -353,13 +418,16 @@ private fun CollectionContent(onProductoClick: (Int) -> Unit) {
             productoController.productos.isEmpty() -> {
                 Text("Aún no hay productos publicados", color = SoftInk, fontSize = 12.sp)
             }
+            productosFiltrados.isEmpty() -> {
+                Text("Ningún vestido coincide con los filtros seleccionados", color = SoftInk, fontSize = 12.sp)
+            }
             else -> {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(productoController.productos) { producto ->
+                    items(productosFiltrados) { producto ->
                         DressCard(producto = producto, onClick = { onProductoClick(producto.id) })
                     }
                 }
@@ -406,36 +474,166 @@ private fun DressCard(producto: Producto, onClick: () -> Unit) {
 
 @Composable
 private fun QuoteContent() {
+    val context = LocalContext.current
+    val items = CarritoController.items
+
+    var nombre by rememberSaveable { mutableStateOf("") }
+    var whatsapp by rememberSaveable { mutableStateOf("") }
+    var email by rememberSaveable { mutableStateOf("") }
+    var tipoEnvio by rememberSaveable { mutableStateOf("Nacional") }
+    var fechaEvento by rememberSaveable { mutableStateOf("") }
+    var notas by rememberSaveable { mutableStateOf("") }
+
+    val puedeEnviar = items.isNotEmpty() && nombre.isNotBlank() && whatsapp.isNotBlank()
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        items(2) { index ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                WireImage("Vestido", modifier = Modifier.size(74.dp))
-                PlaceholderLines(modifier = Modifier.weight(1f), widths = listOf(.72f, .46f))
-                StatPill("- ${index + 1} +")
-                Icon(Icons.Outlined.Close, contentDescription = null, tint = SoftInk, modifier = Modifier.size(18.dp))
+        if (items.isEmpty()) {
+            item {
+                Text(
+                    "Tu lista de cotización está vacía. Agrega vestidos desde la Colección.",
+                    color = SoftInk,
+                    fontSize = 12.sp
+                )
+            }
+        } else {
+            items(items, key = { "${it.producto.id}-${it.talla}" }) { item ->
+                CarritoItemRow(item = item)
             }
         }
-        item { QuoteField("Nombre") }
+        item { QuoteTextField(label = "Nombre", value = nombre, onValueChange = { nombre = it }) }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                QuoteField("WhatsApp", modifier = Modifier.weight(1f))
-                QuoteField("Email", modifier = Modifier.weight(1f))
+                QuoteTextField("WhatsApp", whatsapp, { whatsapp = it }, modifier = Modifier.weight(1f))
+                QuoteTextField("Email", email, { email = it }, modifier = Modifier.weight(1f))
             }
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatPill("Nacional", modifier = Modifier.weight(1f))
-                StatPill("Internacional", modifier = Modifier.weight(1f))
+                FilterChip(
+                    text = "Nacional",
+                    selected = tipoEnvio == "Nacional",
+                    onClick = { tipoEnvio = "Nacional" },
+                    modifier = Modifier.weight(1f)
+                )
+                FilterChip(
+                    text = "Internacional",
+                    selected = tipoEnvio == "Internacional",
+                    onClick = { tipoEnvio = "Internacional" },
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
-        item { QuoteField("Fecha del evento + mín. según destino") }
-        item { QuoteField("Notas", minHeight = 76.dp) }
-        item { ActionButton(text = "Enviar cotización", onClick = {}, modifier = Modifier.fillMaxWidth()) }
+        item {
+            QuoteTextField(
+                "Fecha del evento + mín. según destino",
+                fechaEvento,
+                { fechaEvento = it }
+            )
+        }
+        item {
+            QuoteTextField(
+                "Notas",
+                notas,
+                { notas = it },
+                singleLine = false,
+                minLines = 3
+            )
+        }
+        item {
+            Column {
+                ActionButton(
+                    text = "Enviar cotización",
+                    enabled = puedeEnviar,
+                    onClick = {
+                        val mensaje = construirMensajeCotizacion(
+                            items = items,
+                            nombre = nombre,
+                            whatsapp = whatsapp,
+                            email = email,
+                            tipoEnvio = tipoEnvio,
+                            fechaEvento = fechaEvento,
+                            notas = notas
+                        )
+                        val uri = Uri.parse(
+                            "https://wa.me/${Constantes.WHATSAPP_NUMERO}?text=${URLEncoder.encode(mensaje, "UTF-8")}"
+                        )
+                        context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                        CarritoController.limpiar()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (!puedeEnviar) {
+                    Text(
+                        "Agrega al menos un vestido, tu nombre y tu WhatsApp para continuar",
+                        fontSize = 11.sp,
+                        color = SoftInk,
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
+                }
+            }
+        }
     }
+}
+
+@Composable
+private fun CarritoItemRow(item: ItemCotizacion) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        AsyncImage(
+            model = item.producto.imagenes.firstOrNull(),
+            contentDescription = item.producto.nombre,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(74.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color.White)
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(item.producto.nombre, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Ink)
+            Text("Talla: ${item.talla.name} · $${item.producto.precio}", fontSize = 11.sp, color = SoftInk)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            IconButton(onClick = { CarritoController.decrementar(item) }, modifier = Modifier.size(28.dp)) {
+                Text("−", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
+            }
+            Text("${item.cantidad}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Ink)
+            IconButton(onClick = { CarritoController.incrementar(item) }, modifier = Modifier.size(28.dp)) {
+                Text("+", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
+            }
+        }
+        IconButton(onClick = { CarritoController.quitar(item) }, modifier = Modifier.size(28.dp)) {
+            Icon(Icons.Outlined.Close, contentDescription = "Quitar", tint = SoftInk, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+@Composable
+private fun QuoteTextField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    singleLine: Boolean = true,
+    minLines: Int = 1,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+        singleLine = singleLine,
+        minLines = minLines,
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = Marca,
+            unfocusedBorderColor = Line,
+            focusedLabelColor = Marca,
+            cursorColor = Marca
+        ),
+        modifier = modifier.fillMaxWidth()
+    )
 }
 
 @Composable
@@ -457,6 +655,27 @@ private fun QuoteField(label: String, modifier: Modifier = Modifier, minHeight: 
                 .background(Line)
         )
     }
+}
+
+private fun construirMensajeCotizacion(
+    items: List<ItemCotizacion>,
+    nombre: String,
+    whatsapp: String,
+    email: String,
+    tipoEnvio: String,
+    fechaEvento: String,
+    notas: String,
+): String = buildString {
+    append("¡Hola! Quiero cotizar lo siguiente:\n\n")
+    items.forEach { item ->
+        append("• ${item.producto.nombre} — Talla ${item.talla.name} x${item.cantidad} ($${item.producto.precio} c/u)\n")
+    }
+    append("\nNombre: $nombre\n")
+    append("WhatsApp: $whatsapp\n")
+    if (email.isNotBlank()) append("Email: $email\n")
+    append("Envío: $tipoEnvio\n")
+    if (fechaEvento.isNotBlank()) append("Fecha del evento: $fechaEvento\n")
+    if (notas.isNotBlank()) append("Notas: $notas\n")
 }
 
 @Composable
