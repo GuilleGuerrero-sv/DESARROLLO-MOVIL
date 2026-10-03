@@ -296,7 +296,7 @@ private fun HomeContent(
             item {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                     Text(vestido.nombre, color = SoftInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Text("$${vestido.precio}", color = Marca, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+                    Text(vestido.precioFormateado, color = Marca, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
                 }
             }
         }
@@ -478,7 +478,7 @@ private fun DressCard(producto: Producto, onClick: () -> Unit) {
             modifier = Modifier.padding(top = 8.dp)
         )
         Text(
-            "$${producto.precio}",
+            producto.precioFormateado,
             color = Marca,
             fontSize = 12.sp,
             modifier = Modifier.padding(top = 2.dp)
@@ -628,7 +628,7 @@ private fun CarritoItemRow(item: ItemCotizacion) {
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(item.producto.nombre, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Ink)
-                Text("Talla: ${item.talla.name} · $${item.producto.precio}", fontSize = 11.sp, color = SoftInk)
+                Text("Talla: ${item.talla.name} · ${item.producto.precioFormateado}", fontSize = 11.sp, color = SoftInk)
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 IconButton(onClick = { CarritoController.decrementar(item) }, modifier = Modifier.size(28.dp)) {
@@ -716,7 +716,7 @@ private fun construirMensajeCotizacion(
 ): String = buildString {
     append("¡Hola! Quiero cotizar lo siguiente:\n\n")
     items.forEach { item ->
-        append("• ${item.producto.nombre} — Talla ${item.talla.name} x${item.cantidad} ($${item.producto.precio} c/u)\n")
+        append("• ${item.producto.nombre} — Talla ${item.talla.name} x${item.cantidad} (${item.producto.precioFormateado} c/u)\n")
     }
     append("\nNombre: $nombre\n")
     append("WhatsApp: $whatsapp\n")

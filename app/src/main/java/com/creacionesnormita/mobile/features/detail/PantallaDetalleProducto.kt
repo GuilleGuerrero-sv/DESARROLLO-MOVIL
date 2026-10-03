@@ -138,7 +138,7 @@ private fun DetalleContenido(producto: Producto) {
         item {
             Column {
                 Text(producto.nombre, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
-                Text("$${producto.precio}", fontSize = 16.sp, color = Marca, modifier = Modifier.padding(top = 4.dp))
+                Text(producto.precioFormateado, fontSize = 16.sp, color = Marca, modifier = Modifier.padding(top = 4.dp))
             }
         }
         producto.descripcion?.let { descripcion ->

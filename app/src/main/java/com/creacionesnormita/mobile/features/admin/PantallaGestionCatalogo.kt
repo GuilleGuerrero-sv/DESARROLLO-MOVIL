@@ -141,7 +141,7 @@ private fun ProductoAdminRow(producto: Producto, onClick: () -> Unit) {
                 }
                 Text(producto.nombre, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Ink)
             }
-            Text("$${producto.precio} · Stock total: $stockTotal", fontSize = 11.sp, color = SoftInk)
+            Text("${producto.precioFormateado} · Stock total: $stockTotal", fontSize = 11.sp, color = SoftInk)
         }
         StatPill(if (producto.disponible) "Visible" else "Oculto")
     }

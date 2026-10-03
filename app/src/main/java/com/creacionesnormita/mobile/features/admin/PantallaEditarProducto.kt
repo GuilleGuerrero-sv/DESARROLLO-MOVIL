@@ -70,6 +70,7 @@ import com.creacionesnormita.mobile.core.model.Talla
 import com.creacionesnormita.mobile.core.network.CloudinaryUploader
 import com.creacionesnormita.mobile.ui.components.ActionButton
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 @Composable
 fun PantallaEditarProducto(productoId: Int?, onBack: () -> Unit) {
@@ -135,7 +136,7 @@ fun PantallaEditarProducto(productoId: Int?, onBack: () -> Unit) {
         if (producto != null && !yaCargado) {
             nombre = producto.nombre
             descripcion = producto.descripcion ?: ""
-            precioTexto = producto.precio.toString()
+            precioTexto = String.format(Locale.US, "%.2f", producto.precio)
             color = producto.color ?: ""
             disponible = producto.disponible
             esVestidoDelDia = producto.destacado

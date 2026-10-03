@@ -2,6 +2,7 @@ package com.creacionesnormita.mobile.core.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import java.util.Locale
 
 @Serializable
 enum class Talla {
@@ -22,7 +23,11 @@ data class Producto(
     // Relación embebida: solo se llena si la consulta la incluye explícitamente
     @SerialName("producto_stock")
     val stockPorTalla: List<ProductoStock> = emptyList(),
-)
+) {
+    /** Precio listo para mostrar, siempre con 2 decimales y punto decimal: $95.00, $120.50, $1500.00 */
+    val precioFormateado: String
+        get() = "\$" + String.format(Locale.US, "%.2f", precio)
+}
 
 @Serializable
 data class ProductoStock(
