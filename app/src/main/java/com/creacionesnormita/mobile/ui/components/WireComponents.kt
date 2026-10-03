@@ -27,10 +27,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.creacionesnormita.mobile.core.design.Blush
 import com.creacionesnormita.mobile.core.design.Ink
 import com.creacionesnormita.mobile.core.design.Line
 import com.creacionesnormita.mobile.core.design.Marca
+import com.creacionesnormita.mobile.core.design.Sage
 import com.creacionesnormita.mobile.core.design.SoftInk
+import com.creacionesnormita.mobile.core.model.Perfil
 
 @Composable
 fun ActionButton(
@@ -147,6 +150,29 @@ fun FilterChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: M
             color = if (selected) Color.White else SoftInk,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+fun RoleBadge(rol: String, modifier: Modifier = Modifier) {
+    val (bgColor, textColor) = when {
+        rol.equals(Perfil.ROL_ADMINISTRADOR, ignoreCase = true) || rol.equals("admin", ignoreCase = true) -> Color(0xFFC59B27) to Color.White
+        rol.equals(Perfil.ROL_EMPLEADO, ignoreCase = true) || rol.equals("empleado", ignoreCase = true) -> Blush to Ink
+        else -> Sage to Ink
+    }
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(bgColor)
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = rol.uppercase(),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = textColor
         )
     }
 }

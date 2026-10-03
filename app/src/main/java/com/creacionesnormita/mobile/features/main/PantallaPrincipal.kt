@@ -104,6 +104,7 @@ import com.creacionesnormita.mobile.ui.components.AutoCarousel
 import com.creacionesnormita.mobile.ui.components.BrandMark
 import com.creacionesnormita.mobile.ui.components.FilterChip
 import com.creacionesnormita.mobile.ui.components.PlaceholderLines
+import com.creacionesnormita.mobile.ui.components.RoleBadge
 import com.creacionesnormita.mobile.ui.components.SectionDivider
 import com.creacionesnormita.mobile.ui.components.StatPill
 import com.creacionesnormita.mobile.ui.components.WireImage
@@ -119,17 +120,27 @@ private enum class MainTab(val label: String, val icon: ImageVector) {
 }
 
 @Composable
-fun PantallaPrincipal(onLogout: () -> Unit, onProductoClick: (Int) -> Unit) {
+fun PantallaPrincipal(
+    onLogout: () -> Unit,
+    onCuentaSuspendida: () -> Unit,
+    onProductoClick: (Int) -> Unit,
+    onAbrirGestionCatalogo: () -> Unit,
+    onAbrirGestionUsuarios: () -> Unit,
+) {
     var selectedTab by rememberSaveable { mutableStateOf(MainTab.Home) }
     var showMenu by rememberSaveable { mutableStateOf(false) }
 
     val perfilController = remember { PerfilController() }
 
-    var showGestionCatalogo by rememberSaveable { mutableStateOf(false) }
-    var showGestionUsuarios by rememberSaveable { mutableStateOf(false) }
-
     LaunchedEffect(Unit) {
         perfilController.cargarPerfilActual()
+    }
+
+    // Si un admin bloqueó esta cuenta, se muestra la pantalla de cuenta suspendida.
+    LaunchedEffect(perfilController.cuentaBloqueada) {
+        if (perfilController.cuentaBloqueada) {
+            onCuentaSuspendida()
+        }
     }
 
     val perfil = perfilController.perfilActual
@@ -170,23 +181,12 @@ fun PantallaPrincipal(onLogout: () -> Unit, onProductoClick: (Int) -> Unit) {
                     onClose = { showMenu = false },
                     onOpenGestionCatalogo = {
                         showMenu = false
-                        showGestionCatalogo = true
+                        onAbrirGestionCatalogo()
                     },
                     onOpenGestionUsuarios = {
                         showMenu = false
-                        showGestionUsuarios = true
+                        onAbrirGestionUsuarios()
                     }
-                )
-            }
-
-            if (showGestionCatalogo) {
-                GestionCatalogoDialog(onClose = { showGestionCatalogo = false })
-            }
-
-            if (showGestionUsuarios) {
-                GestionUsuariosDialog(
-                    perfilController = perfilController,
-                    onClose = { showGestionUsuarios = false }
                 )
             }
         }
@@ -905,29 +905,6 @@ private fun AccountContent(
 }
 
 @Composable
-private fun RoleBadge(rol: String, modifier: Modifier = Modifier) {
-    val (bgColor, textColor) = when {
-        rol.equals(Perfil.ROL_ADMINISTRADOR, ignoreCase = true) || rol.equals("admin", ignoreCase = true) -> Color(0xFFC59B27) to Color.White
-        rol.equals(Perfil.ROL_EMPLEADO, ignoreCase = true) || rol.equals("empleado", ignoreCase = true) -> Blush to Ink
-        else -> Sage to Ink
-    }
-
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(bgColor)
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-    ) {
-        Text(
-            text = rol.uppercase(),
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = textColor
-        )
-    }
-}
-
-@Composable
 private fun EditarPerfilDialog(
     perfil: Perfil?,
     onDismiss: () -> Unit,
@@ -1140,169 +1117,6 @@ private fun DrawerOverlay(
                 .clickable { onClose() }
         )
     }
-}
-
-@Composable
-private fun GestionCatalogoDialog(onClose: () -> Unit) {
-    val productoController = remember { ProductoController() }
-
-    LaunchedEffect(Unit) {
-        productoController.cargarProductos()
-    }
-
-    AlertDialog(
-        onDismissRequest = onClose,
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Outlined.Inventory, contentDescription = null, tint = Marca)
-                Text("Gestión de Catálogo", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Ink)
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(360.dp)
-            ) {
-                Text(
-                    "Vista de Empleado y Administrador para actualizar stock y vestidos.",
-                    fontSize = 12.sp,
-                    color = SoftInk,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-
-                if (productoController.cargandoLista) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Cargando catálogo...", fontSize = 12.sp, color = SoftInk)
-                    }
-                } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        items(productoController.productos) { producto ->
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    AsyncImage(
-                                        model = producto.imagenes.firstOrNull(),
-                                        contentDescription = null,
-                                        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(producto.nombre, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                        Text("$${producto.precio}", color = Marca, fontSize = 11.sp)
-                                    }
-                                    StatPill(if (producto.disponible) "Disponible" else "Agotado")
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onClose) {
-                Text("Cerrar", color = Marca, fontWeight = FontWeight.Bold)
-            }
-        }
-    )
-}
-
-@Composable
-private fun GestionUsuariosDialog(
-    perfilController: PerfilController,
-    onClose: () -> Unit
-) {
-    val scope = rememberCoroutineScope()
-    val context = LocalContext.current
-
-    LaunchedEffect(Unit) {
-        perfilController.cargarTodosLosUsuarios()
-    }
-
-    AlertDialog(
-        onDismissRequest = onClose,
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Outlined.AdminPanelSettings, contentDescription = null, tint = Gold)
-                Text("Gestión de Clientes y Roles", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Ink)
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(380.dp)
-            ) {
-                Text(
-                    "Administración de permisos y asignación de roles de usuario.",
-                    fontSize = 12.sp,
-                    color = SoftInk,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-
-                if (perfilController.cargandoUsuarios) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Cargando lista de usuarios...", fontSize = 12.sp, color = SoftInk)
-                    }
-                } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        items(perfilController.usuariosRegistrados) { usuario ->
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    Text(usuario.nombre, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                    Text("Tel: ${usuario.celular}", fontSize = 11.sp, color = SoftInk)
-                                    RoleBadge(rol = usuario.rol, modifier = Modifier.padding(vertical = 6.dp))
-
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        listOf(Perfil.ROL_CLIENTE, Perfil.ROL_EMPLEADO, Perfil.ROL_ADMINISTRADOR).forEach { rolOpcion ->
-                                            TextButton(
-                                                onClick = {
-                                                    scope.launch {
-                                                        val ok = perfilController.cambiarRolUsuario(usuario.id, rolOpcion)
-                                                        if (ok) {
-                                                            Toast.makeText(context, "Rol cambiado a $rolOpcion", Toast.LENGTH_SHORT).show()
-                                                        }
-                                                    }
-                                                },
-                                                modifier = Modifier.weight(1f),
-                                                contentPadding = PaddingValues(0.dp)
-                                            ) {
-                                                Text(
-                                                    rolOpcion.take(5),
-                                                    fontSize = 10.sp,
-                                                    fontWeight = if (usuario.rol == rolOpcion) FontWeight.Bold else FontWeight.Normal,
-                                                    color = if (usuario.rol == rolOpcion) Marca else SoftInk
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onClose) {
-                Text("Cerrar", color = Marca, fontWeight = FontWeight.Bold)
-            }
-        }
-    )
 }
 
 @Composable

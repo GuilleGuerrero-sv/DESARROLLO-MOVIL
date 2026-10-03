@@ -19,7 +19,11 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.creacionesnormita.mobile.MainActivity
 import com.creacionesnormita.mobile.core.network.SupabaseClient
+import com.creacionesnormita.mobile.features.admin.PantallaEditarProducto
+import com.creacionesnormita.mobile.features.admin.PantallaGestionCatalogo
+import com.creacionesnormita.mobile.features.admin.PantallaGestionUsuarios
 import com.creacionesnormita.mobile.features.auth.PantallaAutenticacion
+import com.creacionesnormita.mobile.features.auth.PantallaCuentaSuspendida
 import com.creacionesnormita.mobile.features.detail.PantallaDetalleProducto
 import com.creacionesnormita.mobile.features.main.PantallaPrincipal
 import io.github.jan.supabase.auth.auth
@@ -29,6 +33,11 @@ import kotlinx.coroutines.launch
 private const val RUTA_AUTH = "auth"
 private const val RUTA_PRINCIPAL = "principal"
 private const val RUTA_DETALLE = "detalle/{productoId}"
+private const val RUTA_GESTION_CATALOGO = "gestion-catalogo"
+private const val RUTA_NUEVO_PRODUCTO = "gestion-catalogo/nuevo"
+private const val RUTA_EDITAR_PRODUCTO = "gestion-catalogo/editar/{productoId}"
+private const val RUTA_GESTION_USUARIOS = "gestion-usuarios"
+private const val RUTA_SUSPENDIDA = "cuenta-suspendida"
 
 @Composable
 fun AppRoot() {
@@ -79,8 +88,23 @@ fun AppRoot() {
                         SupabaseClient.client.auth.signOut()
                     }
                 },
+                onCuentaSuspendida = {
+                    scope.launch {
+                        // Primero navega a la pantalla de suspensión y luego cierra la sesión
+                        navController.navigate(RUTA_SUSPENDIDA) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                        SupabaseClient.client.auth.signOut()
+                    }
+                },
                 onProductoClick = { productoId ->
                     navController.navigate("detalle/$productoId")
+                },
+                onAbrirGestionCatalogo = {
+                    navController.navigate(RUTA_GESTION_CATALOGO)
+                },
+                onAbrirGestionUsuarios = {
+                    navController.navigate(RUTA_GESTION_USUARIOS)
                 }
             )
         }
@@ -94,6 +118,35 @@ fun AppRoot() {
                 onBack = { navController.popBackStack() }
             )
         }
+        composable(RUTA_GESTION_CATALOGO) {
+            PantallaGestionCatalogo(
+                onBack = { navController.popBackStack() },
+                onNuevoProducto = { navController.navigate(RUTA_NUEVO_PRODUCTO) },
+                onEditarProducto = { productoId -> navController.navigate("gestion-catalogo/editar/$productoId") }
+            )
+        }
+        composable(RUTA_NUEVO_PRODUCTO) {
+            PantallaEditarProducto(productoId = null, onBack = { navController.popBackStack() })
+        }
+        composable(
+            route = RUTA_EDITAR_PRODUCTO,
+            arguments = listOf(navArgument("productoId") { type = NavType.IntType })
+        ) { backStackEntry ->
+            val productoId = backStackEntry.arguments?.getInt("productoId") ?: return@composable
+            PantallaEditarProducto(productoId = productoId, onBack = { navController.popBackStack() })
+        }
+        composable(RUTA_GESTION_USUARIOS) {
+            PantallaGestionUsuarios(onBack = { navController.popBackStack() })
+        }
+        composable(RUTA_SUSPENDIDA) {
+            PantallaCuentaSuspendida(
+                onVolverAlLogin = {
+                    navController.navigate(RUTA_AUTH) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
+        }
     }
 
     // 2. Ya con el NavHost montado, ahora sí escucha cambios de sesión EN VIVO
@@ -101,6 +154,8 @@ fun AppRoot() {
     LaunchedEffect(navController) {
         if (SupabaseClient.isConfigured()) {
             SupabaseClient.client.auth.sessionStatus.collect { status ->
+                // Si se está mostrando la pantalla de cuenta suspendida, no la reemplaces
+                if (navController.currentDestination?.route == RUTA_SUSPENDIDA) return@collect
                 when (status) {
                     is SessionStatus.Authenticated -> {
                         val esRecuperacion = MainActivity.esFlujoRecuperacion

@@ -4,6 +4,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.creacionesnormita.mobile.core.model.Perfil
+import com.creacionesnormita.mobile.core.model.SoloActivo
+import com.creacionesnormita.mobile.core.model.SoloRol
 import com.creacionesnormita.mobile.core.network.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
@@ -20,9 +22,18 @@ class PerfilController {
         private set
     var cargandoUsuarios by mutableStateOf(false)
         private set
+    var errorUsuarios by mutableStateOf<String?>(null)
+        private set
 
     val userEmail: String
         get() = SupabaseClient.client.auth.currentSessionOrNull()?.user?.email ?: "usuario@ejemplo.com"
+
+    val currentUserId: String?
+        get() = SupabaseClient.client.auth.currentSessionOrNull()?.user?.id
+
+    /** Se vuelve true si el perfil cargado está bloqueado; AppRoot debe cerrar la sesión cuando esto pase. */
+    var cuentaBloqueada by mutableStateOf(false)
+        private set
 
     suspend fun cargarPerfilActual() {
         cargandoPerfil = true
@@ -45,6 +56,10 @@ class PerfilController {
                     celular = "",
                     rol = Perfil.ROL_CLIENTE
                 )
+
+                if (perfil != null && !perfil.activo) {
+                    cuentaBloqueada = true
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -84,6 +99,7 @@ class PerfilController {
 
     suspend fun cargarTodosLosUsuarios() {
         cargandoUsuarios = true
+        errorUsuarios = null
         try {
             usuariosRegistrados = SupabaseClient.client
                 .from("profiles")
@@ -91,23 +107,73 @@ class PerfilController {
                 .decodeList<Perfil>()
         } catch (e: Exception) {
             e.printStackTrace()
+            errorUsuarios = e.message
         } finally {
             cargandoUsuarios = false
         }
     }
 
+    /**
+     * Cambia SOLO la columna `rol` (con update, no upsert). Pide de vuelta la fila actualizada:
+     * si Supabase la bloquea por RLS devuelve 0 filas sin lanzar error, y así lo detectamos.
+     */
     suspend fun cambiarRolUsuario(usuarioId: String, nuevoRol: String): Boolean {
+        errorUsuarios = null
         try {
-            val usuario = usuariosRegistrados.find { it.id == usuarioId } ?: return false
-            val actualizado = usuario.copy(rol = nuevoRol)
-            SupabaseClient.client.from("profiles").upsert(actualizado)
-            cargarTodosLosUsuarios()
+            val filas = SupabaseClient.client
+                .from("profiles")
+                .update(SoloRol(nuevoRol)) {
+                    select()
+                    filter { eq("id", usuarioId) }
+                }
+                .decodeList<Perfil>()
+
+            if (filas.isEmpty()) {
+                errorUsuarios = "Supabase no aplicó el cambio. Revisa las políticas (RLS) de la tabla profiles."
+                return false
+            }
+            usuariosRegistrados = usuariosRegistrados.map {
+                if (it.id == usuarioId) it.copy(rol = nuevoRol) else it
+            }
             if (perfilActual?.id == usuarioId) {
-                perfilActual = actualizado
+                perfilActual = perfilActual?.copy(rol = nuevoRol)
             }
             return true
         } catch (e: Exception) {
             e.printStackTrace()
+            errorUsuarios = e.message
+            return false
+        }
+    }
+
+    /**
+     * No borra la cuenta de Supabase Auth (eso requeriría la service_role key,
+     * que nunca debe estar en la app). En su lugar, bloquea el acceso: la próxima
+     * vez que esa persona intente entrar, [cargarPerfilActual] detecta activo=false
+     * y AppRoot la saca de sesión automáticamente.
+     */
+    suspend fun cambiarEstadoUsuario(usuarioId: String, activo: Boolean): Boolean {
+        errorUsuarios = null
+        try {
+            val filas = SupabaseClient.client
+                .from("profiles")
+                .update(SoloActivo(activo)) {
+                    select()
+                    filter { eq("id", usuarioId) }
+                }
+                .decodeList<Perfil>()
+
+            if (filas.isEmpty()) {
+                errorUsuarios = "Supabase no aplicó el cambio. Revisa las políticas (RLS) de la tabla profiles."
+                return false
+            }
+            usuariosRegistrados = usuariosRegistrados.map {
+                if (it.id == usuarioId) it.copy(activo = activo) else it
+            }
+            return true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            errorUsuarios = e.message
             return false
         }
     }

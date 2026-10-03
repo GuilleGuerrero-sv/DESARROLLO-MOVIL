@@ -1,16 +1,20 @@
 package com.creacionesnormita.mobile.core.model
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class Perfil(
     val id: String,
     val nombre: String,
     val fecha_nacimiento: String,
     val celular: String,
-    val otro_contacto: String? = null,
-    val foto_url: String? = null,
-    val rol: String = ROL_CLIENTE
+    @EncodeDefault val otro_contacto: String? = null,
+    @EncodeDefault val foto_url: String? = null,
+    @EncodeDefault val rol: String = ROL_CLIENTE,
+    @EncodeDefault val activo: Boolean = true,
 ) {
     companion object {
         const val ROL_CLIENTE = "Cliente"
