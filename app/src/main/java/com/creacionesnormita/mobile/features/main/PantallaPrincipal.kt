@@ -3,6 +3,7 @@ package com.creacionesnormita.mobile.features.main
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -48,6 +49,8 @@ import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -760,6 +763,8 @@ private fun AccountContent(
     val perfil = perfilController.perfilActual
     val context = LocalContext.current
     var showEditDialog by rememberSaveable { mutableStateOf(false) }
+    var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
+    var subSeccionCuenta by rememberSaveable { mutableStateOf("perfil") }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -836,38 +841,94 @@ private fun AccountContent(
         }
 
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatPill("Mi Perfil", modifier = Modifier.weight(1f))
-                StatPill("Mis Favoritos", modifier = Modifier.weight(1f))
-                StatPill("Mis Cotizaciones", modifier = Modifier.weight(1f))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                OpcionCuentaCard(
+                    label = "Perfil",
+                    icon = Icons.Outlined.Person,
+                    seleccionado = subSeccionCuenta == "perfil",
+                    onClick = { subSeccionCuenta = "perfil" },
+                    modifier = Modifier.weight(1f)
+                )
+                OpcionCuentaCard(
+                    label = "Favoritos",
+                    icon = Icons.Outlined.FavoriteBorder,
+                    seleccionado = subSeccionCuenta == "favoritos",
+                    onClick = { subSeccionCuenta = "favoritos" },
+                    modifier = Modifier.weight(1f)
+                )
+                OpcionCuentaCard(
+                    label = "Cotizaciones",
+                    icon = Icons.AutoMirrored.Outlined.ReceiptLong,
+                    seleccionado = subSeccionCuenta == "cotizaciones",
+                    onClick = { subSeccionCuenta = "cotizaciones" },
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
 
-        item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.White)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Text("Información de la cuenta", fontWeight = FontWeight.Bold, color = Ink, fontSize = 14.sp)
-                SectionDivider()
-                Text("Nombre: ${perfil?.nombre ?: "-"}", fontSize = 13.sp, color = SoftInk)
-                Text("WhatsApp / Celular: ${perfil?.celular ?: "-"}", fontSize = 13.sp, color = SoftInk)
-                Text("Otro contacto: ${perfil?.otro_contacto ?: "No especificado"}", fontSize = 13.sp, color = SoftInk)
-                Text("Fecha Nacimiento: ${perfil?.fecha_nacimiento ?: "-"}", fontSize = 13.sp, color = SoftInk)
-                Text("Rol autorizado: ${perfil?.rol ?: Perfil.ROL_CLIENTE}", fontSize = 13.sp, color = Marca, fontWeight = FontWeight.Bold)
+        when (subSeccionCuenta) {
+            "favoritos" -> {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.White)
+                            .padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(Icons.Outlined.FavoriteBorder, contentDescription = null, tint = Marca, modifier = Modifier.size(32.dp))
+                        Text("Tus vestidos favoritos", fontWeight = FontWeight.Bold, color = Ink)
+                        Text("Aquí se guardarán los vestidos que selecciones con el ícono de corazón.", fontSize = 12.sp, color = SoftInk, textAlign = TextAlign.Center)
+                    }
+                }
             }
-        }
+            "cotizaciones" -> {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.White)
+                            .padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(Icons.AutoMirrored.Outlined.ReceiptLong, contentDescription = null, tint = Marca, modifier = Modifier.size(32.dp))
+                        Text("Historial de cotizaciones", fontWeight = FontWeight.Bold, color = Ink)
+                        Text("Tus solicitudes de cotización enviadas por WhatsApp se registrarán aquí.", fontSize = 12.sp, color = SoftInk, textAlign = TextAlign.Center)
+                    }
+                }
+            }
+            else -> {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.White)
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text("Información de la cuenta", fontWeight = FontWeight.Bold, color = Ink, fontSize = 14.sp)
+                        SectionDivider()
+                        Text("Nombre: ${perfil?.nombre ?: "-"}", fontSize = 13.sp, color = SoftInk)
+                        Text("WhatsApp / Celular: ${perfil?.celular ?: "-"}", fontSize = 13.sp, color = SoftInk)
+                        Text("Otro contacto: ${perfil?.otro_contacto ?: "No especificado"}", fontSize = 13.sp, color = SoftInk)
+                        Text("Fecha Nacimiento: ${perfil?.fecha_nacimiento ?: "-"}", fontSize = 13.sp, color = SoftInk)
+                        Text("Rol autorizado: ${perfil?.rol ?: Perfil.ROL_CLIENTE}", fontSize = 13.sp, color = Marca, fontWeight = FontWeight.Bold)
+                    }
+                }
 
-        item {
-            ActionButton(
-                text = "Editar datos autorizados",
-                onClick = { showEditDialog = true },
-                modifier = Modifier.fillMaxWidth()
-            )
+                item {
+                    ActionButton(
+                        text = "Editar datos autorizados",
+                        onClick = { showEditDialog = true },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
         }
 
         item {
@@ -877,6 +938,28 @@ private fun AccountContent(
                 modifier = Modifier.fillMaxWidth(),
                 filled = false
             )
+        }
+
+        item {
+            Button(
+                onClick = { showDeleteDialog = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp),
+                shape = RoundedCornerShape(22.dp),
+                border = BorderStroke(1.dp, Color(0xFFDC2626)),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFFEE2E2),
+                    contentColor = Color(0xFFDC2626)
+                )
+            ) {
+                Text(
+                    text = "ELIMINAR CUENTA",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFDC2626)
+                )
+            }
         }
     }
 
@@ -901,6 +984,121 @@ private fun AccountContent(
                 showEditDialog = false
             }
         )
+    }
+
+    if (showDeleteDialog) {
+        ConfirmDeleteAccountDialog(
+            onDismiss = { showDeleteDialog = false },
+            onConfirm = {
+                scope.launch {
+                    val ok = perfilController.eliminarCuentaActual()
+                    if (ok) {
+                        Toast.makeText(context, "Tu cuenta ha sido eliminada.", Toast.LENGTH_LONG).show()
+                        onLogout()
+                    } else {
+                        Toast.makeText(context, "No se pudo eliminar la cuenta. Inténtalo de nuevo.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                showDeleteDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun ConfirmDeleteAccountDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    var textoConfirmacion by rememberSaveable { mutableStateOf("") }
+    val esTextoValido = textoConfirmacion.trim().equals("ELIMINAR", ignoreCase = true)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Eliminar cuenta", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "Esta acción es permanente e irreversible. Tu perfil y tus datos asociados serán eliminados de la plataforma.",
+                    fontSize = 13.sp,
+                    color = SoftInk
+                )
+                Text(
+                    "Para confirmar, escribe ELIMINAR a continuación:",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Ink
+                )
+                OutlinedTextField(
+                    value = textoConfirmacion,
+                    onValueChange = { textoConfirmacion = it },
+                    placeholder = { Text("ELIMINAR") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                enabled = esTextoValido
+            ) {
+                Text(
+                    "Eliminar definitivamente",
+                    color = if (esTextoValido) MaterialTheme.colorScheme.error else SoftInk,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar", color = SoftInk)
+            }
+        }
+    )
+}
+
+@Composable
+private fun OpcionCuentaCard(
+    label: String,
+    icon: ImageVector,
+    seleccionado: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = if (seleccionado) Blush else Color.White
+        ),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, if (seleccionado) Marca else Line),
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp, horizontal = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = if (seleccionado) Marca else Ink,
+                modifier = Modifier.size(20.dp)
+            )
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (seleccionado) Marca else Ink,
+                maxLines = 1,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 
@@ -1022,7 +1220,7 @@ private fun DrawerOverlay(
                     ) {
                         if (!perfil?.foto_url.isNullOrBlank()) {
                             AsyncImage(
-                                model = perfil?.foto_url,
+                                model = perfil.foto_url,
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize().clip(CircleShape)

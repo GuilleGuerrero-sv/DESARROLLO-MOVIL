@@ -7,18 +7,17 @@ import androidx.lifecycle.viewModelScope
 import com.creacionesnormita.mobile.core.model.Perfil
 import com.creacionesnormita.mobile.core.network.SupabaseClient
 import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.auth.providers.Facebook
-import io.github.jan.supabase.auth.providers.Google
-import io.github.jan.supabase.auth.providers.Twitter
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 sealed class AuthState {
     object Idle : AuthState()
     object Loading : AuthState()
     object Success : AuthState()
-    object SignUpSuccess : AuthState()
+    data class SignUpSuccess(val email: String) : AuthState()
     object PasswordUpdateSuccess : AuthState()
     data class ResetPasswordSuccess(val emailSentTo: String) : AuthState()
     data class Error(val message: String) : AuthState()
@@ -53,6 +52,23 @@ class AuthViewModel : ViewModel() {
                     this.email = trimmedEmail
                     this.password = password
                 }
+
+                // Verificar si el correo está confirmado antes de dar acceso
+                val currentUser = SupabaseClient.client.auth.currentSessionOrNull()?.user
+                val estaVerificado = currentUser?.emailConfirmedAt != null
+
+                if (!estaVerificado) {
+                    try {
+                        SupabaseClient.client.auth.signOut()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                    _authState.value = AuthState.Error(
+                        "Debes confirmar tu correo electrónico antes de iniciar sesión. Por favor, revisa tu bandeja de entrada o spam."
+                    )
+                    return@launch
+                }
+
                 _authState.value = AuthState.Success
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -97,11 +113,19 @@ class AuthViewModel : ViewModel() {
         viewModelScope.launch {
             _authState.value = AuthState.Loading
             try {
+                val metadata = buildJsonObject {
+                    put("full_name", nombre.trim())
+                    put("fecha_nacimiento", fechaNacimiento.trim())
+                    put("celular", celular.trim())
+                    otroContacto.trim().ifBlank { null }?.let { put("otro_contacto", it) }
+                }
+
                 val user = SupabaseClient.client.auth.signUpWith(Email) {
                     this.email = trimmedEmail
                     this.password = password
+                    this.data = metadata
                 }
-                
+
                 if (user != null) {
                     val perfil = Perfil(
                         id = user.id,
@@ -110,26 +134,22 @@ class AuthViewModel : ViewModel() {
                         celular = celular.trim(),
                         otro_contacto = otroContacto.trim().ifBlank { null }
                     )
-                    
-                    // Intentar guardar el perfil en la base de datos
+
                     try {
                         SupabaseClient.client.postgrest["profiles"].insert(perfil)
                     } catch (pe: Exception) {
                         pe.printStackTrace()
-                        // Si guardar el perfil falla (por ejemplo si RLS o confirmación de email lo impide),
-                        // no interrumpimos el registro de la cuenta del usuario en Auth.
                     }
-                    
-                    // Cerramos sesión ANTES de avisar del éxito para evitar saltar a la pantalla principal
+
                     try {
                         SupabaseClient.client.auth.signOut()
                     } catch (e: Exception) {
-                        // Ignorar errores de signout durante el registro
+                        e.printStackTrace()
                     }
-                    
-                    _authState.value = AuthState.SignUpSuccess
+
+                    _authState.value = AuthState.SignUpSuccess(trimmedEmail)
                 } else {
-                    _authState.value = AuthState.Error("No pudimos crear tu cuenta")
+                    _authState.value = AuthState.Error("No pudimos iniciar el registro")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -265,57 +285,6 @@ class AuthViewModel : ViewModel() {
                     this.password = nuevaPassword
                 }
                 _authState.value = AuthState.PasswordUpdateSuccess
-            } catch (e: Exception) {
-                e.printStackTrace()
-                _authState.value = AuthState.Error(parseErrorMessage(e, isLogin = true))
-            }
-        }
-    }
-
-    fun loginWithGoogle() {
-        if (!SupabaseClient.isConfigured()) {
-            _authState.value = AuthState.Error("No se ha configurado la conexión a Supabase")
-            return
-        }
-        viewModelScope.launch {
-            _authState.value = AuthState.Loading
-            try {
-                SupabaseClient.client.auth.signInWith(Google, redirectUrl = "creacionesnormita://reset-password")
-                _authState.value = AuthState.Success
-            } catch (e: Exception) {
-                e.printStackTrace()
-                _authState.value = AuthState.Error(parseErrorMessage(e, isLogin = true))
-            }
-        }
-    }
-
-    fun loginWithFacebook() {
-        if (!SupabaseClient.isConfigured()) {
-            _authState.value = AuthState.Error("No se ha configurado la conexión a Supabase")
-            return
-        }
-        viewModelScope.launch {
-            _authState.value = AuthState.Loading
-            try {
-                SupabaseClient.client.auth.signInWith(Facebook, redirectUrl = "creacionesnormita://reset-password")
-                _authState.value = AuthState.Success
-            } catch (e: Exception) {
-                e.printStackTrace()
-                _authState.value = AuthState.Error(parseErrorMessage(e, isLogin = true))
-            }
-        }
-    }
-
-    fun loginWithTwitter() {
-        if (!SupabaseClient.isConfigured()) {
-            _authState.value = AuthState.Error("No se ha configurado la conexión a Supabase")
-            return
-        }
-        viewModelScope.launch {
-            _authState.value = AuthState.Loading
-            try {
-                SupabaseClient.client.auth.signInWith(Twitter, redirectUrl = "creacionesnormita://reset-password")
-                _authState.value = AuthState.Success
             } catch (e: Exception) {
                 e.printStackTrace()
                 _authState.value = AuthState.Error(parseErrorMessage(e, isLogin = true))

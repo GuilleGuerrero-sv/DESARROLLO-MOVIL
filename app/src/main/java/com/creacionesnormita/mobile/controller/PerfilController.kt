@@ -9,6 +9,7 @@ import com.creacionesnormita.mobile.core.model.SoloRol
 import com.creacionesnormita.mobile.core.network.SupabaseClient
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
 
 class PerfilController {
     var perfilActual by mutableStateOf<Perfil?>(null)
@@ -174,6 +175,40 @@ class PerfilController {
         } catch (e: Exception) {
             e.printStackTrace()
             errorUsuarios = e.message
+            return false
+        }
+    }
+
+    suspend fun eliminarCuentaActual(): Boolean {
+        val user = SupabaseClient.client.auth.currentSessionOrNull()?.user ?: return false
+        try {
+            // 1. Ejecutar RPC para borrar de auth.users y public.profiles
+            try {
+                SupabaseClient.client.postgrest.rpc("delete_user_account")
+            } catch (rpcErr: Exception) {
+                rpcErr.printStackTrace()
+                // Fallback: intentar borrar de profiles directamente
+                try {
+                    SupabaseClient.client.from("profiles").delete {
+                        filter { eq("id", user.id) }
+                    }
+                } catch (pe: Exception) {
+                    pe.printStackTrace()
+                }
+            }
+
+            // 2. Cerrar sesión
+            try {
+                SupabaseClient.client.auth.signOut()
+            } catch (se: Exception) {
+                se.printStackTrace()
+            }
+
+            perfilActual = null
+            return true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            perfilActual = null
             return false
         }
     }

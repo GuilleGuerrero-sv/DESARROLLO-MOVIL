@@ -2,7 +2,6 @@ package com.creacionesnormita.mobile.features.auth
 
 import android.util.Patterns
 import android.widget.Toast
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -22,24 +21,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AccountCircle
-import androidx.compose.material.icons.outlined.AlternateEmail
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Phone
-import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -53,7 +46,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -98,6 +90,7 @@ fun PantallaAutenticacion(
     var confirmarNuevaPassword by rememberSaveable { mutableStateOf("") }
 
     var mostrarDialogoOlvidado by rememberSaveable { mutableStateOf(false) }
+    var correoVerificacionPendiente by rememberSaveable { mutableStateOf<String?>(null) }
 
     val authState by viewModel.authState
     val context = LocalContext.current
@@ -115,7 +108,10 @@ fun PantallaAutenticacion(
                 viewModel.resetState()
             }
             is AuthState.SignUpSuccess -> {
-                Toast.makeText(context, "¡Cuenta creada con éxito! Ya puedes iniciar sesión.", Toast.LENGTH_LONG).show()
+                val emailCreado = (authState as AuthState.SignUpSuccess).email
+                correoVerificacionPendiente = emailCreado
+                usuario = emailCreado
+                claveLogin = ""
                 estaRegistrando = false
                 viewModel.resetState()
             }
@@ -170,6 +166,44 @@ fun PantallaAutenticacion(
             dismissButton = {
                 TextButton(onClick = { mostrarDialogoOlvidado = false }) {
                     Text("Cancelar", color = SoftInk)
+                }
+            }
+        )
+    }
+
+    if (correoVerificacionPendiente != null) {
+        AlertDialog(
+            onDismissRequest = {
+                correoVerificacionPendiente = null
+                MainActivity.esFlujoRegistro = false
+            },
+            title = { Text("Verificación de Correo Requerida", fontWeight = FontWeight.Bold, color = Ink) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "Hemos enviado un mensaje de confirmación a:",
+                        fontSize = 13.sp,
+                        color = SoftInk
+                    )
+                    Text(
+                        correoVerificacionPendiente!!,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Marca
+                    )
+                    Text(
+                        "Abre tu bandeja de entrada o spam y presiona el enlace de verificación para activar tu cuenta antes de ingresar.",
+                        fontSize = 13.sp,
+                        color = SoftInk
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    correoVerificacionPendiente = null
+                    MainActivity.esFlujoRegistro = false
+                }) {
+                    Text("Entendido", color = Marca, fontWeight = FontWeight.Bold)
                 }
             }
         )
@@ -372,6 +406,7 @@ fun PantallaAutenticacion(
                             }
                             estaRegistrando -> {
                                 if (claveRegistro == confirmarClave) {
+                                    MainActivity.esFlujoRegistro = true
                                     viewModel.signUp(correo, claveRegistro, nombre, fechaNacimiento, celular, otroContacto)
                                 } else {
                                     Toast.makeText(context, "Las contraseñas no coinciden", Toast.LENGTH_SHORT).show()
@@ -415,55 +450,6 @@ fun PantallaAutenticacion(
                 }
             }
 
-            if (!estaEnFlujoRecuperacion) {
-                // --- Sección de Login Social ---
-                Spacer(Modifier.height(16.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    HorizontalDivider(modifier = Modifier.weight(1f), color = Line)
-                    Text(
-                        " O entra con ",
-                        color = SoftInk,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp)
-                    )
-                    HorizontalDivider(modifier = Modifier.weight(1f), color = Line)
-                }
-                Spacer(Modifier.height(14.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    SocialButton(
-                        text = "Google",
-                        icon = Icons.Outlined.AccountCircle,
-                        onClick = {
-                            viewModel.loginWithGoogle()
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    SocialButton(
-                        text = "Facebook",
-                        icon = Icons.Outlined.Share,
-                        onClick = {
-                            viewModel.loginWithFacebook()
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                    SocialButton(
-                        text = "X",
-                        icon = Icons.Outlined.AlternateEmail,
-                        onClick = {
-                            viewModel.loginWithTwitter()
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
             Spacer(Modifier.height(22.dp))
             Box(
                 modifier = Modifier
@@ -481,33 +467,6 @@ fun PantallaAutenticacion(
                     modifier = Modifier.fillMaxWidth()
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun SocialButton(
-    text: String,
-    icon: ImageVector,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = modifier,
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, Line),
-        colors = ButtonDefaults.outlinedButtonColors(
-            contentColor = Ink
-        ),
-        contentPadding = PaddingValues(vertical = 10.dp, horizontal = 4.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = Marca)
-            Text(text, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Ink)
         }
     }
 }

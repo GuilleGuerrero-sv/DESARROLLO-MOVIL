@@ -19,6 +19,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         var esFlujoRecuperacion by mutableStateOf(false)
+        var esFlujoRegistro by mutableStateOf(false)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

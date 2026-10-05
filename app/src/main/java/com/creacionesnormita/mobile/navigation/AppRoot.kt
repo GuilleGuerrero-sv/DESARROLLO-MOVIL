@@ -54,7 +54,8 @@ fun AppRoot() {
                 SupabaseClient.client.auth.awaitInitialization()
                 val statusInicial = SupabaseClient.client.auth.sessionStatus.value
                 val esRecuperacion = MainActivity.esFlujoRecuperacion
-                startDestination = if (statusInicial is SessionStatus.Authenticated && !esRecuperacion) RUTA_PRINCIPAL else RUTA_AUTH
+                val esRegistro = MainActivity.esFlujoRegistro
+                startDestination = if (statusInicial is SessionStatus.Authenticated && !esRecuperacion && !esRegistro) RUTA_PRINCIPAL else RUTA_AUTH
             } catch (e: Exception) {
                 e.printStackTrace()
                 startDestination = RUTA_AUTH
@@ -159,7 +160,8 @@ fun AppRoot() {
                 when (status) {
                     is SessionStatus.Authenticated -> {
                         val esRecuperacion = MainActivity.esFlujoRecuperacion
-                        if (!esRecuperacion && navController.currentDestination?.route != RUTA_PRINCIPAL) {
+                        val esRegistro = MainActivity.esFlujoRegistro
+                        if (!esRecuperacion && !esRegistro && navController.currentDestination?.route != RUTA_PRINCIPAL) {
                             navController.navigate(RUTA_PRINCIPAL) {
                                 popUpTo(0) { inclusive = true }
                             }
