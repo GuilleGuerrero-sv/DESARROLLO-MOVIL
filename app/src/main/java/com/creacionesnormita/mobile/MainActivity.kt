@@ -45,14 +45,23 @@ class MainActivity : ComponentActivity() {
         val data = intent.data
         if (data != null) {
             val uriString = data.toString()
-            if (data.host == "reset-password" || uriString.contains("type=recovery") || uriString.contains("reset")) {
+            val esRecuperacionReal = uriString.contains("type=recovery", ignoreCase = true)
+
+            if (esRecuperacionReal) {
                 esFlujoRecuperacion = true
+            } else {
+                esFlujoRecuperacion = false
             }
+
             try {
                 SupabaseClient.client.handleDeeplinks(
                     intent = intent,
                     onSessionSuccess = {
-                        esFlujoRecuperacion = true
+                        if (esRecuperacionReal) {
+                            esFlujoRecuperacion = true
+                        } else {
+                            esFlujoRecuperacion = false
+                        }
                     }
                 )
             } catch (e: Exception) {

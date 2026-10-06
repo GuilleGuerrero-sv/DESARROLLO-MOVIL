@@ -222,13 +222,7 @@ private fun AppHeader(mostrarMenu: Boolean, onMenuClick: () -> Unit) {
 
             BrandMark()
 
-            if (mostrarMenu) {
-                IconButton(onClick = onMenuClick) {
-                    Icon(Icons.Outlined.MoreVert, contentDescription = "Más", tint = Ink)
-                }
-            } else {
-                Spacer(Modifier.width(48.dp))
-            }
+            Spacer(Modifier.width(48.dp))
         }
         SectionDivider()
     }
@@ -1243,69 +1237,72 @@ private fun DrawerOverlay(
 
             Spacer(Modifier.height(18.dp))
 
-            // Secciones Estándar
-            val opcionesStandard = listOf("Colección", "Citas", "Cotizaciones", "Preguntas frecuentes", "WhatsApp directo")
-            opcionesStandard.forEachIndexed { index, label ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onClose() }
-                        .padding(vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = when (index) {
-                            0 -> Icons.Outlined.StarBorder
-                            1 -> Icons.Outlined.CalendarMonth
-                            2 -> Icons.AutoMirrored.Outlined.ReceiptLong
-                            else -> Icons.AutoMirrored.Outlined.Send
-                        },
-                        contentDescription = null,
-                        tint = Ink,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Text(label, color = SoftInk, fontSize = 14.sp, modifier = Modifier.padding(start = 16.dp))
-                }
-            }
-
-            // --- Secciones por Rol ---
             if (esEmpleadoOrAdmin) {
-                SectionDivider()
+                // --- Secciones de Gestión Exclusivas para Empleados y Administradores ---
                 Text(
-                    "GESTIÓN DE EMPLEADO",
+                    "PANEL DE GESTIÓN",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = Marca,
-                    modifier = Modifier.padding(top = 10.dp, bottom = 6.dp)
+                    modifier = Modifier.padding(top = 10.dp, bottom = 10.dp)
                 )
 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Paper)
                         .clickable { onOpenGestionCatalogo() }
-                        .padding(vertical = 10.dp),
+                        .padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Outlined.Inventory, contentDescription = null, tint = Marca, modifier = Modifier.size(20.dp))
-                    Text("Gestión de Catálogo", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 16.dp))
+                    Icon(Icons.Outlined.Inventory, contentDescription = null, tint = Marca, modifier = Modifier.size(22.dp))
+                    Text("Gestión de Catálogo", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 14.dp))
                 }
-            }
 
-            if (esAdmin) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onOpenGestionUsuarios() }
-                        .padding(vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Outlined.AdminPanelSettings, contentDescription = null, tint = Gold, modifier = Modifier.size(20.dp))
-                    Text("Gestión de Clientes y Usuarios", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 16.dp))
+                if (esAdmin) {
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Paper)
+                            .clickable { onOpenGestionUsuarios() }
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Outlined.AdminPanelSettings, contentDescription = null, tint = Color(0xFFC59B27), modifier = Modifier.size(22.dp))
+                        Text("Gestión de Clientes y Usuarios", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 14.dp))
+                    }
                 }
+            } else {
+                // --- Secciones Estándar para Clientes ---
+                val opcionesStandard = listOf("Colección", "Citas", "Cotizaciones", "Preguntas frecuentes", "WhatsApp directo")
+                opcionesStandard.forEachIndexed { index, label ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onClose() }
+                            .padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = when (index) {
+                                0 -> Icons.Outlined.StarBorder
+                                1 -> Icons.Outlined.CalendarMonth
+                                2 -> Icons.AutoMirrored.Outlined.ReceiptLong
+                                else -> Icons.AutoMirrored.Outlined.Send
+                            },
+                            contentDescription = null,
+                            tint = Ink,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(label, color = SoftInk, fontSize = 14.sp, modifier = Modifier.padding(start = 16.dp))
+                    }
+                }
+                Spacer(Modifier.weight(1f))
+                ActionButton(text = "WhatsApp directo", onClick = {}, modifier = Modifier.padding(top = 22.dp).fillMaxWidth(), filled = false)
             }
-
-            Spacer(Modifier.weight(1f))
-            ActionButton(text = "WhatsApp directo", onClick = {}, modifier = Modifier.fillMaxWidth(), filled = false)
         }
         Box(
             modifier = Modifier

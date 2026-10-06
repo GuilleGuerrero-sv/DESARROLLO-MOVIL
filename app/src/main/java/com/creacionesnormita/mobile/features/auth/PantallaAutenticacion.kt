@@ -1,5 +1,6 @@
 package com.creacionesnormita.mobile.features.auth
 
+import android.app.DatePickerDialog
 import android.util.Patterns
 import android.widget.Toast
 import androidx.compose.foundation.Image
@@ -41,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -95,6 +97,18 @@ fun PantallaAutenticacion(
     val authState by viewModel.authState
     val context = LocalContext.current
     val estaEnFlujoRecuperacion = MainActivity.esFlujoRecuperacion
+
+    val datePickerDialog = remember(context) {
+        DatePickerDialog(
+            context,
+            { _, selectedYear, selectedMonth, selectedDay ->
+                val formattedDay = String.format("%02d", selectedDay)
+                val formattedMonth = String.format("%02d", selectedMonth + 1)
+                fechaNacimiento = "$formattedDay/$formattedMonth/$selectedYear"
+            },
+            2000, 0, 1
+        )
+    }
 
     // Validaciones visuales
     val emailValido = Patterns.EMAIL_ADDRESS.matcher(if (estaRegistrando) correo else usuario).matches()
@@ -294,19 +308,21 @@ fun PantallaAutenticacion(
                     AuthField(
                         value = fechaNacimiento,
                         onValueChange = { input ->
-                            val clean = input.filter { it.isDigit() }.take(8)
-                            val formatted = buildString {
-                                for (i in clean.indices) {
-                                    append(clean[i])
-                                    if ((i == 1 || i == 3) && i != clean.lastIndex) append("/")
-                                }
+                            val digits = input.filter { it.isDigit() }.take(8)
+                            fechaNacimiento = when {
+                                digits.length >= 5 -> "${digits.substring(0, 2)}/${digits.substring(2, 4)}/${digits.substring(4)}"
+                                digits.length >= 3 -> "${digits.substring(0, 2)}/${digits.substring(2)}"
+                                else -> digits
                             }
-                            fechaNacimiento = formatted
                         },
                         label = "Fecha de nacimiento*",
-                        placeholder = "DD/MM/AAAA",
+                        placeholder = "DD/MM/AAAA (Toca el ícono de calendario)",
                         keyboardType = KeyboardType.Number,
-                        icon = { Icon(Icons.Outlined.CalendarToday, contentDescription = null) },
+                        icon = {
+                            IconButton(onClick = { datePickerDialog.show() }) {
+                                Icon(Icons.Outlined.CalendarToday, contentDescription = "Calendario", tint = Marca)
+                            }
+                        },
                         imeAction = ImeAction.Next
                     )
                     AuthField(
