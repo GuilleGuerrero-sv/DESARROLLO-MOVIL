@@ -2,6 +2,7 @@ package com.creacionesnormita.mobile.features.main
 
 import android.content.Intent
 import android.net.Uri
+import android.util.Patterns
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -115,6 +116,10 @@ import com.creacionesnormita.mobile.ui.components.StatPill
 import com.creacionesnormita.mobile.ui.components.WireImage
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.time.format.ResolverStyle
 
 private enum class MainTab(val label: String, val icon: ImageVector) {
     Home("Inicio", Icons.Outlined.Home),
@@ -715,6 +720,7 @@ private fun QuoteTextField(
     modifier: Modifier = Modifier,
     singleLine: Boolean = true,
     minLines: Int = 1,
+    errorText: String? = null,
 ) {
     OutlinedTextField(
         value = value,
@@ -722,6 +728,10 @@ private fun QuoteTextField(
         label = { Text(label.uppercase(), fontSize = 10.sp, fontWeight = FontWeight.Bold) },
         singleLine = singleLine,
         minLines = minLines,
+        isError = errorText != null,
+        supportingText = errorText?.let { mensaje ->
+            { Text(mensaje, fontSize = 10.sp) }
+        },
         shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = Marca,
@@ -773,6 +783,98 @@ private fun construirMensajeCotizacion(
     append("Envío: $tipoEnvio\n")
     if (fechaEvento.isNotBlank()) append("Fecha del evento: $fechaEvento\n")
     if (notas.isNotBlank()) append("Notas: $notas\n")
+}
+
+private val formatosFechaCita = listOf(
+    DateTimeFormatter.ofPattern("d/M/uuuu").withResolverStyle(ResolverStyle.STRICT),
+    DateTimeFormatter.ofPattern("d-M-uuuu").withResolverStyle(ResolverStyle.STRICT),
+    DateTimeFormatter.ISO_LOCAL_DATE.withResolverStyle(ResolverStyle.STRICT),
+)
+
+private fun parseFechaCita(fecha: String): LocalDate? {
+    val limpia = fecha.trim()
+    return formatosFechaCita.firstNotNullOfOrNull { formato ->
+        runCatching { LocalDate.parse(limpia, formato) }.getOrNull()
+    }
+}
+
+private fun parseHoraCita(hora: String): LocalTime? {
+    val partes = hora.trim().split(":")
+    if (partes.size != 2) return null
+
+    val horas = partes[0].toIntOrNull() ?: return null
+    val minutos = partes[1].toIntOrNull() ?: return null
+
+    return if (horas in 0..23 && minutos in 0..59) {
+        LocalTime.of(horas, minutos)
+    } else {
+        null
+    }
+}
+
+private fun validarNombreCita(nombre: String): String? {
+    val limpio = nombre.trim()
+    return when {
+        limpio.isBlank() -> "Ingresa el nombre de la persona que reserva."
+        limpio.length < 3 -> "El nombre debe tener al menos 3 caracteres."
+        !Regex("^[\\p{L} .'-]+$").matches(limpio) -> "El nombre solo debe contener letras y espacios."
+        else -> null
+    }
+}
+
+private fun validarWhatsappCita(whatsapp: String): String? {
+    val digitos = whatsapp.filter { it.isDigit() }
+    return when {
+        whatsapp.isBlank() -> "Ingresa un numero de WhatsApp."
+        digitos.length < 8 -> "El WhatsApp debe tener al menos 8 digitos."
+        digitos.length > 15 -> "El WhatsApp no debe pasar de 15 digitos."
+        else -> null
+    }
+}
+
+private fun validarEmailCita(email: String): String? {
+    val limpio = email.trim()
+    return when {
+        limpio.isBlank() -> null
+        !Patterns.EMAIL_ADDRESS.matcher(limpio).matches() -> "Ingresa un correo valido."
+        else -> null
+    }
+}
+
+private fun validarFechaCita(fecha: String): String? {
+    val fechaCita = parseFechaCita(fecha)
+    return when {
+        fecha.isBlank() -> "Ingresa la fecha de la videollamada."
+        fechaCita == null -> "Usa una fecha valida, por ejemplo 25/10/2026."
+        fechaCita.isBefore(LocalDate.now()) -> "La fecha no puede estar en el pasado."
+        else -> null
+    }
+}
+
+private fun validarHoraCita(hora: String, fecha: String): String? {
+    val horaCita = parseHoraCita(hora)
+    val fechaCita = parseFechaCita(fecha)
+    return when {
+        hora.isBlank() -> "Ingresa la hora de la videollamada."
+        horaCita == null -> "Usa hora en formato 24 horas, por ejemplo 14:30."
+        fechaCita == LocalDate.now() && horaCita.isBefore(LocalTime.now().plusMinutes(30)) -> {
+            "Si la cita es hoy, elige una hora al menos 30 minutos despues."
+        }
+        else -> null
+    }
+}
+
+private fun validarMotivoCita(motivo: String): String? {
+    val limpio = motivo.trim()
+    return when {
+        limpio.isBlank() -> "Indica que buscas para la cita."
+        limpio.length < 4 -> "Describe un poco mas que necesitas."
+        else -> null
+    }
+}
+
+private fun validarNotasCita(notas: String): String? {
+    return if (notas.length > 280) "Las notas no deben pasar de 280 caracteres." else null
 }
 
 @Composable
@@ -845,7 +947,24 @@ private fun AppointmentContent(perfilController: PerfilController) {
         }
     }
 
-    val puedeReservar = nombre.isNotBlank() && whatsapp.isNotBlank() && fecha.isNotBlank() && hora.isNotBlank()
+    // Trabajo Guillermo: validaciones del formulario antes de enviar la solicitud por WhatsApp.
+    val nombreError = validarNombreCita(nombre)
+    val whatsappError = validarWhatsappCita(whatsapp)
+    val emailError = validarEmailCita(email)
+    val fechaError = validarFechaCita(fecha)
+    val horaError = validarHoraCita(hora, fecha)
+    val motivoError = validarMotivoCita(motivo)
+    val notasError = validarNotasCita(notas)
+    val erroresCita = listOfNotNull(
+        nombreError,
+        whatsappError,
+        emailError,
+        fechaError,
+        horaError,
+        motivoError,
+        notasError
+    )
+    val puedeReservar = erroresCita.isEmpty()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -879,27 +998,66 @@ private fun AppointmentContent(perfilController: PerfilController) {
                 )
             }
         }
-        item { QuoteTextField("Nombre", nombre, { nombre = it }) }
+        item {
+            QuoteTextField(
+                label = "Nombre",
+                value = nombre,
+                onValueChange = { nombre = it },
+                errorText = nombreError.takeIf { nombre.isNotBlank() }
+            )
+        }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                QuoteTextField("WhatsApp", whatsapp, { whatsapp = it }, modifier = Modifier.weight(1f))
-                QuoteTextField("Email", email, { email = it }, modifier = Modifier.weight(1f))
+                QuoteTextField(
+                    label = "WhatsApp",
+                    value = whatsapp,
+                    onValueChange = { whatsapp = it },
+                    modifier = Modifier.weight(1f),
+                    errorText = whatsappError.takeIf { whatsapp.isNotBlank() }
+                )
+                QuoteTextField(
+                    label = "Email",
+                    value = email,
+                    onValueChange = { email = it },
+                    modifier = Modifier.weight(1f),
+                    errorText = emailError
+                )
             }
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                QuoteTextField("Fecha", fecha, { fecha = it }, modifier = Modifier.weight(1f))
-                QuoteTextField("Hora", hora, { hora = it }, modifier = Modifier.weight(1f))
+                QuoteTextField(
+                    label = "Fecha",
+                    value = fecha,
+                    onValueChange = { fecha = it },
+                    modifier = Modifier.weight(1f),
+                    errorText = fechaError.takeIf { fecha.isNotBlank() }
+                )
+                QuoteTextField(
+                    label = "Hora",
+                    value = hora,
+                    onValueChange = { hora = it },
+                    modifier = Modifier.weight(1f),
+                    errorText = horaError.takeIf { hora.isNotBlank() }
+                )
             }
         }
-        item { QuoteTextField("Qué buscas? (quinceañera, boda...)", motivo, { motivo = it }) }
+        item {
+            QuoteTextField(
+                label = "Qué buscas? (quinceañera, boda...)",
+                value = motivo,
+                onValueChange = { motivo = it },
+                errorText = motivoError.takeIf { motivo.isNotBlank() }
+            )
+        }
         item {
             QuoteTextField(
                 label = "Notas para la asesora",
                 value = notas,
                 onValueChange = { notas = it },
                 singleLine = false,
-                minLines = 3
+                minLines = 3,
+                errorText = notasError
             )
         }
         item {
@@ -926,7 +1084,7 @@ private fun AppointmentContent(perfilController: PerfilController) {
                 )
                 if (!puedeReservar) {
                     Text(
-                        "Completa nombre, WhatsApp, fecha y hora para reservar",
+                        erroresCita.firstOrNull() ?: "Completa los datos requeridos para reservar",
                         fontSize = 11.sp,
                         color = SoftInk,
                         modifier = Modifier.padding(top = 6.dp)
