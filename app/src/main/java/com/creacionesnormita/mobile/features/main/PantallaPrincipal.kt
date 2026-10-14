@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.AdminPanelSettings
 import androidx.compose.material.icons.outlined.Badge
 import androidx.compose.material.icons.outlined.CalendarMonth
@@ -86,6 +87,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.creacionesnormita.mobile.controller.CarritoController
+import com.creacionesnormita.mobile.controller.FavoritosController
 import com.creacionesnormita.mobile.controller.PerfilController
 import com.creacionesnormita.mobile.controller.ProductoController
 import com.creacionesnormita.mobile.core.Constantes
@@ -168,11 +170,15 @@ fun PantallaPrincipal(
                     onGoAppointments = { selectedTab = MainTab.Appointments },
                     onProductoClick = onProductoClick
                 )
-                MainTab.Collection -> CollectionContent(onProductoClick = onProductoClick)
+                MainTab.Collection -> CollectionContent(
+                    perfilController = perfilController,
+                    onProductoClick = onProductoClick
+                )
                 MainTab.Quote -> QuoteContent(perfilController = perfilController)
-                MainTab.Appointments -> AppointmentContent()
+                MainTab.Appointments -> AppointmentContent(perfilController = perfilController)
                 MainTab.Account -> AccountContent(
                     perfilController = perfilController,
+                    onProductoClick = onProductoClick,
                     onLogout = onLogout
                 )
             }
@@ -374,15 +380,26 @@ private fun Producto.cumpleFiltros(filtros: Set<FiltroColeccion>): Boolean {
 }
 
 @Composable
-private fun CollectionContent(onProductoClick: (Int) -> Unit) {
+private fun CollectionContent(
+    perfilController: PerfilController,
+    onProductoClick: (Int) -> Unit
+) {
+    val context = LocalContext.current
     val productoController = remember { ProductoController() }
     var filtrosActivos by remember { mutableStateOf<Set<FiltroColeccion>>(emptySet()) }
+    val userId = perfilController.currentUserId ?: perfilController.perfilActual?.id
 
     LaunchedEffect(Unit) {
         productoController.cargarProductos()
     }
 
+    // Trabajo Guillermo: carga favoritos de la cuenta actual para pintar la estrella del catalogo.
+    LaunchedEffect(userId) {
+        FavoritosController.cargar(context, userId)
+    }
+
     val productosFiltrados = productoController.productos.filter { it.cumpleFiltros(filtrosActivos) }
+    val favoritos = FavoritosController.idsFavoritos
 
     Column(modifier = Modifier.fillMaxSize().padding(18.dp)) {
         Row(
@@ -443,7 +460,16 @@ private fun CollectionContent(onProductoClick: (Int) -> Unit) {
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(productosFiltrados) { producto ->
-                        DressCard(producto = producto, onClick = { onProductoClick(producto.id) })
+                        DressCard(
+                            producto = producto,
+                            esFavorito = favoritos.contains(producto.id),
+                            onFavoriteClick = {
+                                val agregado = FavoritosController.alternar(context, userId, producto.id)
+                                val mensaje = if (agregado) "Agregado a favoritos" else "Quitado de favoritos"
+                                Toast.makeText(context, mensaje, Toast.LENGTH_SHORT).show()
+                            },
+                            onClick = { onProductoClick(producto.id) }
+                        )
                     }
                 }
             }
@@ -452,21 +478,47 @@ private fun CollectionContent(onProductoClick: (Int) -> Unit) {
 }
 
 @Composable
-private fun DressCard(producto: Producto, onClick: () -> Unit) {
+private fun DressCard(
+    producto: Producto,
+    esFavorito: Boolean,
+    onFavoriteClick: () -> Unit,
+    onClick: () -> Unit
+) {
     val stockTotal = producto.stockPorTalla.sumOf { it.stock }
     val hayStock = producto.disponible && stockTotal > 0
 
     Column(modifier = Modifier.clickable(onClick = onClick)) {
-        AsyncImage(
-            model = producto.imagenes.firstOrNull(),
-            contentDescription = producto.nombre,
-            contentScale = ContentScale.Crop,
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(.82f)
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color.White)
-        )
+        ) {
+            AsyncImage(
+                model = producto.imagenes.firstOrNull(),
+                contentDescription = producto.nombre,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            // Trabajo Guillermo: boton de estrella para agregar o quitar del listado de favoritos.
+            IconButton(
+                onClick = onFavoriteClick,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(6.dp)
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = .92f))
+            ) {
+                Icon(
+                    imageVector = if (esFavorito) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                    contentDescription = if (esFavorito) "Quitar de favoritos" else "Agregar a favoritos",
+                    tint = if (esFavorito) Marca else Ink,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
         Text(
             producto.nombre,
             color = SoftInk,
@@ -724,7 +776,77 @@ private fun construirMensajeCotizacion(
 }
 
 @Composable
-private fun AppointmentContent() {
+private fun PerfilResumenCard(perfil: Perfil?, email: String) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(18.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(58.dp)
+                    .clip(CircleShape)
+                    .background(Blush),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!perfil?.foto_url.isNullOrBlank()) {
+                    AsyncImage(
+                        model = perfil.foto_url,
+                        contentDescription = "Foto de perfil",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().clip(CircleShape)
+                    )
+                } else {
+                    Icon(Icons.Outlined.Person, contentDescription = null, tint = Ink, modifier = Modifier.size(28.dp))
+                }
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(perfil?.nombre ?: "Usuario en sesión", color = Ink, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text(email, color = SoftInk, fontSize = 12.sp)
+                Text(
+                    text = perfil?.celular?.ifBlank { "WhatsApp no registrado" } ?: "WhatsApp no registrado",
+                    color = SoftInk,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+        }
+    }
+}
+
+// Trabajo Guillermo: pantalla de citas por videollamada usando los datos del perfil en sesion.
+@Composable
+private fun AppointmentContent(perfilController: PerfilController) {
+    val context = LocalContext.current
+    val perfil = perfilController.perfilActual
+
+    var nombre by rememberSaveable { mutableStateOf("") }
+    var whatsapp by rememberSaveable { mutableStateOf("") }
+    var email by rememberSaveable { mutableStateOf("") }
+    var fecha by rememberSaveable { mutableStateOf("") }
+    var hora by rememberSaveable { mutableStateOf("") }
+    var motivo by rememberSaveable { mutableStateOf("") }
+    var notas by rememberSaveable { mutableStateOf("") }
+    var yaPrecargado by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(perfil) {
+        if (perfil != null && !yaPrecargado) {
+            nombre = perfil.nombre
+            whatsapp = perfil.celular
+            email = perfilController.userEmail
+            yaPrecargado = true
+        }
+    }
+
+    val puedeReservar = nombre.isNotBlank() && whatsapp.isNotBlank() && fecha.isNotBlank() && hora.isNotBlank()
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(18.dp),
@@ -732,33 +854,265 @@ private fun AppointmentContent() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         item {
-            Icon(Icons.Outlined.CalendarToday, contentDescription = null, tint = Ink, modifier = Modifier.size(30.dp))
-            PlaceholderLines(modifier = Modifier.padding(top = 18.dp).fillMaxWidth(), widths = listOf(.62f, .86f, .7f))
+            PerfilResumenCard(
+                perfil = perfil,
+                email = perfilController.userEmail
+            )
         }
-        item { WireImage("Video de muestra", modifier = Modifier.fillMaxWidth().height(104.dp)) }
-        item { QuoteField("Nombre", modifier = Modifier.fillMaxWidth()) }
-        item { QuoteField("WhatsApp", modifier = Modifier.fillMaxWidth()) }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                QuoteField("Fecha", modifier = Modifier.weight(1f))
-                QuoteField("Hora", modifier = Modifier.weight(1f))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.White)
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Icon(Icons.Outlined.CalendarToday, contentDescription = null, tint = Ink, modifier = Modifier.size(30.dp))
+                Text("Cita por videollamada", color = Ink, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(
+                    "Agenda una asesoría y enviaremos la solicitud por WhatsApp con tus datos de cuenta.",
+                    color = SoftInk,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center
+                )
             }
         }
-        item { QuoteField("Qué buscas? (quinceañera, boda...)", modifier = Modifier.fillMaxWidth()) }
-        item { ActionButton(text = "Reservar videollamada", onClick = {}, modifier = Modifier.fillMaxWidth()) }
+        item { QuoteTextField("Nombre", nombre, { nombre = it }) }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                QuoteTextField("WhatsApp", whatsapp, { whatsapp = it }, modifier = Modifier.weight(1f))
+                QuoteTextField("Email", email, { email = it }, modifier = Modifier.weight(1f))
+            }
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                QuoteTextField("Fecha", fecha, { fecha = it }, modifier = Modifier.weight(1f))
+                QuoteTextField("Hora", hora, { hora = it }, modifier = Modifier.weight(1f))
+            }
+        }
+        item { QuoteTextField("Qué buscas? (quinceañera, boda...)", motivo, { motivo = it }) }
+        item {
+            QuoteTextField(
+                label = "Notas para la asesora",
+                value = notas,
+                onValueChange = { notas = it },
+                singleLine = false,
+                minLines = 3
+            )
+        }
+        item {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                ActionButton(
+                    text = "Reservar videollamada",
+                    enabled = puedeReservar,
+                    onClick = {
+                        val mensaje = construirMensajeCita(
+                            nombre = nombre,
+                            whatsapp = whatsapp,
+                            email = email,
+                            fecha = fecha,
+                            hora = hora,
+                            motivo = motivo,
+                            notas = notas
+                        )
+                        val uri = Uri.parse(
+                            "https://wa.me/${Constantes.WHATSAPP_NUMERO}?text=${URLEncoder.encode(mensaje, "UTF-8")}"
+                        )
+                        context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (!puedeReservar) {
+                    Text(
+                        "Completa nombre, WhatsApp, fecha y hora para reservar",
+                        fontSize = 11.sp,
+                        color = SoftInk,
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// Trabajo Guillermo: arma el mensaje que se envia por WhatsApp al reservar la videollamada.
+private fun construirMensajeCita(
+    nombre: String,
+    whatsapp: String,
+    email: String,
+    fecha: String,
+    hora: String,
+    motivo: String,
+    notas: String,
+): String = buildString {
+    append("¡Hola! Quiero reservar una cita por videollamada.\n\n")
+    append("Nombre: $nombre\n")
+    append("WhatsApp: $whatsapp\n")
+    if (email.isNotBlank()) append("Email: $email\n")
+    append("Fecha: $fecha\n")
+    append("Hora: $hora\n")
+    if (motivo.isNotBlank()) append("Busco: $motivo\n")
+    if (notas.isNotBlank()) append("Notas: $notas\n")
+}
+
+// Trabajo Guillermo: fila usada en la subpantalla con la lista completa de favoritos.
+@Composable
+private fun FavoritoListaRow(
+    producto: Producto,
+    onClick: () -> Unit,
+    onRemove: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            AsyncImage(
+                model = producto.imagenes.firstOrNull(),
+                contentDescription = producto.nombre,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Paper)
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(producto.nombre, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Ink)
+                Text(producto.precioFormateado, fontSize = 12.sp, color = Marca, modifier = Modifier.padding(top = 3.dp))
+                StatPill(
+                    text = if (producto.stockPorTalla.sumOf { it.stock } > 0) "Disponible ahora" else "Agotado",
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+            IconButton(onClick = onRemove) {
+                Icon(
+                    Icons.Filled.Star,
+                    contentDescription = "Quitar de favoritos",
+                    tint = Marca
+                )
+            }
+        }
+    }
+}
+
+// Trabajo Guillermo: muestra en perfil los tres ultimos vestidos marcados como favoritos.
+@Composable
+private fun UltimosFavoritosPerfil(
+    favoritos: List<Producto>,
+    cargando: Boolean,
+    onProductoClick: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Text("Últimos favoritos", fontWeight = FontWeight.Bold, color = Ink, fontSize = 14.sp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            repeat(3) { index ->
+                MiniFavoritoSlot(
+                    producto = favoritos.getOrNull(index),
+                    cargando = cargando,
+                    onClick = {
+                        favoritos.getOrNull(index)?.let { onProductoClick(it.id) }
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+        if (!cargando && favoritos.isEmpty()) {
+            Text("Marca vestidos con la estrella del catálogo para verlos aquí.", color = SoftInk, fontSize = 11.sp)
+        }
+    }
+}
+
+@Composable
+private fun MiniFavoritoSlot(
+    producto: Producto?,
+    cargando: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .height(128.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Paper)
+            .then(if (producto != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color.White),
+            contentAlignment = Alignment.Center
+        ) {
+            when {
+                producto != null -> {
+                    AsyncImage(
+                        model = producto.imagenes.firstOrNull(),
+                        contentDescription = producto.nombre,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                cargando -> Text("...", color = SoftInk, fontSize = 12.sp)
+                else -> Icon(Icons.Outlined.StarBorder, contentDescription = null, tint = Line)
+            }
+        }
+        Text(
+            text = producto?.nombre ?: "Vacío",
+            color = if (producto != null) Ink else SoftInk,
+            fontSize = 10.sp,
+            fontWeight = if (producto != null) FontWeight.Bold else FontWeight.Normal,
+            maxLines = 2,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 6.dp)
+        )
     }
 }
 
 @Composable
 private fun AccountContent(
     perfilController: PerfilController,
+    onProductoClick: (Int) -> Unit,
     onLogout: () -> Unit
 ) {
     val perfil = perfilController.perfilActual
     val context = LocalContext.current
+    val productoController = remember { ProductoController() }
     var showEditDialog by rememberSaveable { mutableStateOf(false) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var subSeccionCuenta by rememberSaveable { mutableStateOf("perfil") }
+    val userId = perfilController.currentUserId ?: perfil?.id
+
+    LaunchedEffect(userId) {
+        FavoritosController.cargar(context, userId)
+        productoController.cargarProductos()
+    }
+
+    val productosFavoritos = FavoritosController.productosFavoritos(productoController.productos)
+    val ultimosFavoritos = FavoritosController.productosFavoritos(productoController.productos, limite = 3)
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -874,7 +1228,36 @@ private fun AccountContent(
                     ) {
                         Icon(Icons.Outlined.FavoriteBorder, contentDescription = null, tint = Marca, modifier = Modifier.size(32.dp))
                         Text("Tus vestidos favoritos", fontWeight = FontWeight.Bold, color = Ink)
-                        Text("Aquí se guardarán los vestidos que selecciones con el ícono de corazón.", fontSize = 12.sp, color = SoftInk, textAlign = TextAlign.Center)
+                        Text("Lista completa de vestidos marcados con estrella en el catálogo.", fontSize = 12.sp, color = SoftInk, textAlign = TextAlign.Center)
+                    }
+                }
+                when {
+                    productoController.cargandoLista -> {
+                        item {
+                            Text("Cargando favoritos...", color = SoftInk, fontSize = 12.sp)
+                        }
+                    }
+                    FavoritosController.idsFavoritos.isEmpty() -> {
+                        item {
+                            Text("Todavía no has agregado vestidos a favoritos.", color = SoftInk, fontSize = 12.sp)
+                        }
+                    }
+                    productosFavoritos.isEmpty() -> {
+                        item {
+                            Text("No se encontraron productos favoritos disponibles en este momento.", color = SoftInk, fontSize = 12.sp)
+                        }
+                    }
+                    else -> {
+                        items(productosFavoritos, key = { it.id }) { producto ->
+                            FavoritoListaRow(
+                                producto = producto,
+                                onClick = { onProductoClick(producto.id) },
+                                onRemove = {
+                                    FavoritosController.alternar(context, userId, producto.id)
+                                    Toast.makeText(context, "Quitado de favoritos", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -913,6 +1296,14 @@ private fun AccountContent(
                         Text("Fecha Nacimiento: ${perfil?.fecha_nacimiento ?: "-"}", fontSize = 13.sp, color = SoftInk)
                         Text("Rol autorizado: ${perfil?.rol ?: Perfil.ROL_CLIENTE}", fontSize = 13.sp, color = Marca, fontWeight = FontWeight.Bold)
                     }
+                }
+
+                item {
+                    UltimosFavoritosPerfil(
+                        favoritos = ultimosFavoritos,
+                        cargando = productoController.cargandoLista,
+                        onProductoClick = onProductoClick
+                    )
                 }
 
                 item {
