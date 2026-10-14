@@ -55,6 +55,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -66,6 +69,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -116,8 +120,10 @@ import com.creacionesnormita.mobile.ui.components.StatPill
 import com.creacionesnormita.mobile.ui.components.WireImage
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.ResolverStyle
 
@@ -764,6 +770,77 @@ private fun QuoteField(label: String, modifier: Modifier = Modifier, minHeight: 
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AppointmentDateField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    errorText: String? = null,
+) {
+    var showPicker by rememberSaveable { mutableStateOf(false) }
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = fechaCitaAMillis(value)
+    )
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { showPicker = true }
+    ) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {},
+            readOnly = true,
+            enabled = false,
+            label = { Text("FECHA", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+            placeholder = { Text("Seleccionar fecha") },
+            trailingIcon = {
+                Icon(Icons.Outlined.CalendarToday, contentDescription = "Seleccionar fecha")
+            },
+            isError = errorText != null,
+            supportingText = errorText?.let { mensaje ->
+                { Text(mensaje, fontSize = 10.sp) }
+            },
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                disabledTextColor = Ink,
+                disabledBorderColor = if (errorText != null) MaterialTheme.colorScheme.error else Line,
+                disabledLabelColor = if (errorText != null) MaterialTheme.colorScheme.error else SoftInk,
+                disabledPlaceholderColor = SoftInk,
+                disabledTrailingIconColor = Ink,
+                disabledSupportingTextColor = MaterialTheme.colorScheme.error,
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+
+    if (showPicker) {
+        DatePickerDialog(
+            onDismissRequest = { showPicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            onValueChange(millisAFechaCita(millis))
+                        }
+                        showPicker = false
+                    }
+                ) {
+                    Text("Aceptar", color = Marca, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPicker = false }) {
+                    Text("Cancelar", color = SoftInk)
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+}
+
 private fun construirMensajeCotizacion(
     items: List<ItemCotizacion>,
     nombre: String,
@@ -790,12 +867,27 @@ private val formatosFechaCita = listOf(
     DateTimeFormatter.ofPattern("d-M-uuuu").withResolverStyle(ResolverStyle.STRICT),
     DateTimeFormatter.ISO_LOCAL_DATE.withResolverStyle(ResolverStyle.STRICT),
 )
+private val formatoSalidaFechaCita = DateTimeFormatter.ofPattern("dd/MM/uuuu")
 
 private fun parseFechaCita(fecha: String): LocalDate? {
     val limpia = fecha.trim()
     return formatosFechaCita.firstNotNullOfOrNull { formato ->
         runCatching { LocalDate.parse(limpia, formato) }.getOrNull()
     }
+}
+
+private fun fechaCitaAMillis(fecha: String): Long? {
+    return parseFechaCita(fecha)
+        ?.atStartOfDay(ZoneOffset.UTC)
+        ?.toInstant()
+        ?.toEpochMilli()
+}
+
+private fun millisAFechaCita(millis: Long): String {
+    return Instant.ofEpochMilli(millis)
+        .atZone(ZoneOffset.UTC)
+        .toLocalDate()
+        .format(formatoSalidaFechaCita)
 }
 
 private fun parseHoraCita(hora: String): LocalTime? {
@@ -1026,8 +1118,7 @@ private fun AppointmentContent(perfilController: PerfilController) {
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                QuoteTextField(
-                    label = "Fecha",
+                AppointmentDateField(
                     value = fecha,
                     onValueChange = { fecha = it },
                     modifier = Modifier.weight(1f),
