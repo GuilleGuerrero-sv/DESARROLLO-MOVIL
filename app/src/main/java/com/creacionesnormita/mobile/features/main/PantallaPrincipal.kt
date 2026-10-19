@@ -1,8 +1,10 @@
 package com.creacionesnormita.mobile.features.main
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.annotation.OptIn
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -65,6 +67,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -84,6 +87,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
 import com.creacionesnormita.mobile.controller.CarritoController
 import com.creacionesnormita.mobile.controller.PerfilController
@@ -101,7 +111,6 @@ import com.creacionesnormita.mobile.core.model.ItemCotizacion
 import com.creacionesnormita.mobile.core.model.Perfil
 import com.creacionesnormita.mobile.core.model.Producto
 import com.creacionesnormita.mobile.core.model.Talla
-import com.creacionesnormita.mobile.core.sample.serviciosDestacados
 import com.creacionesnormita.mobile.ui.components.ActionButton
 import com.creacionesnormita.mobile.ui.components.AutoCarousel
 import com.creacionesnormita.mobile.ui.components.BrandMark
@@ -113,6 +122,15 @@ import com.creacionesnormita.mobile.ui.components.StatPill
 import com.creacionesnormita.mobile.ui.components.WireImage
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
+import androidx.media3.common.VideoSize
+
+/**
+ * Video de muestra de la pantalla de inicio.
+ * - Si queda vacío (""), se reproduce el archivo local res/raw/video_muestra.mp4
+ * - Si pones una URL (por ejemplo de Cloudinary, terminada en .mp4), se reproduce desde internet
+ *   (requiere el permiso INTERNET en el AndroidManifest.xml).
+ */
+private const val VIDEO_MUESTRA_URL = ""
 
 private enum class MainTab(val label: String, val icon: ImageVector) {
     Home("Inicio", Icons.Outlined.Home),
@@ -121,6 +139,13 @@ private enum class MainTab(val label: String, val icon: ImageVector) {
     Appointments("Citas", Icons.Outlined.CalendarMonth),
     Account("Cuenta", Icons.Outlined.Person)
 }
+
+/** Atajo rápido de la pantalla de inicio: icono + texto + acción. */
+private data class Atajo(
+    val titulo: String,
+    val icono: ImageVector,
+    val onClick: () -> Unit
+)
 
 @Composable
 fun PantallaPrincipal(
@@ -166,6 +191,7 @@ fun PantallaPrincipal(
                 MainTab.Home -> HomeContent(
                     onGoCollection = { selectedTab = MainTab.Collection },
                     onGoAppointments = { selectedTab = MainTab.Appointments },
+                    onGoQuote = { selectedTab = MainTab.Quote },
                     onProductoClick = onProductoClick
                 )
                 MainTab.Collection -> CollectionContent(onProductoClick = onProductoClick)
@@ -228,13 +254,112 @@ private fun AppHeader(mostrarMenu: Boolean, onMenuClick: () -> Unit) {
     }
 }
 
+/** Abre el chat de WhatsApp del negocio con un mensaje inicial. */
+private fun abrirWhatsApp(
+    context: Context,
+    mensaje: String = "¡Hola! Quisiera más información sobre sus vestidos."
+) {
+    try {
+        val uri = Uri.parse(
+            "https://wa.me/${Constantes.WHATSAPP_NUMERO}?text=${URLEncoder.encode(mensaje, "UTF-8")}"
+        )
+        context.startActivity(Intent(Intent.ACTION_VIEW, uri))
+    } catch (e: Exception) {
+        Toast.makeText(context, "No se pudo abrir WhatsApp", Toast.LENGTH_SHORT).show()
+    }
+}
+
+/**
+ * Video de muestra en formato 16:9 con controles de reproducción.
+ * Usa Media3 (ExoPlayer), que es más estable que VideoView dentro de un LazyColumn.
+ * El archivo local se busca por nombre (res/raw/video_muestra.mp4), así que
+ * el proyecto compila aunque todavía no lo hayas agregado.
+ */
+
+@OptIn(UnstableApi::class)
+@Composable
+private fun VideoMuestra(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val resId = remember {
+        context.resources.getIdentifier("video_muestra", "raw", context.packageName)
+    }
+
+    if (VIDEO_MUESTRA_URL.isBlank() && resId == 0) {
+        WireImage(
+            label = "Agrega res/raw/video_muestra.mp4",
+            modifier = modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+        )
+        return
+    }
+
+    // Proporción real del video (ancho / alto). Empieza en 16:9 hasta que cargue.
+    var aspecto by remember { mutableStateOf(16f / 9f) }
+
+    val player = remember {
+        ExoPlayer.Builder(context).build().apply {
+            val uri = if (VIDEO_MUESTRA_URL.isBlank()) {
+                Uri.parse("android.resource://${context.packageName}/$resId")
+            } else {
+                Uri.parse(VIDEO_MUESTRA_URL)
+            }
+            setMediaItem(MediaItem.fromUri(uri))
+            repeatMode = Player.REPEAT_MODE_ONE
+            volume = 0f // video sin sonido
+            playWhenReady = true
+            prepare()
+        }
+    }
+
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                if (videoSize.width > 0 && videoSize.height > 0) {
+                    aspecto = videoSize.width * videoSize.pixelWidthHeightRatio / videoSize.height
+                }
+            }
+        }
+        player.addListener(listener)
+        onDispose {
+            player.removeListener(listener)
+            player.release()
+        }
+    }
+
+    AndroidView(
+        factory = { ctx ->
+            PlayerView(ctx).apply {
+                this.player = player
+                useController = true
+                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                setBackgroundColor(android.graphics.Color.BLACK)
+            }
+        },
+        modifier = modifier
+            .fillMaxWidth()
+            // Se adapta al video, pero con límites para que uno muy vertical no ocupe toda la pantalla
+            .aspectRatio(aspecto.coerceIn(0.75f, 1.78f))
+            .clip(RoundedCornerShape(16.dp))
+    )
+}
 @Composable
 private fun HomeContent(
     onGoCollection: () -> Unit,
     onGoAppointments: () -> Unit,
+    onGoQuote: () -> Unit,
     onProductoClick: (Int) -> Unit
 ) {
+    val context = LocalContext.current
     val productoController = remember { ProductoController() }
+
+    // Atajos rápidos: cada uno con su icono, texto y acción.
+    val atajos = listOf(
+        Atajo("Colección", Icons.Outlined.StarBorder, onGoCollection),
+        Atajo("Citas", Icons.Outlined.CalendarMonth, onGoAppointments),
+        Atajo("Cotizar", Icons.AutoMirrored.Outlined.ReceiptLong, onGoQuote),
+        Atajo("WhatsApp", Icons.Outlined.Phone) { abrirWhatsApp(context) }
+    )
 
     LaunchedEffect(Unit) {
         productoController.cargarVestidoDelDia()
@@ -251,7 +376,12 @@ private fun HomeContent(
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 ActionButton(text = "Ver colección", onClick = onGoCollection, modifier = Modifier.weight(1f))
-                ActionButton(text = "WhatsApp", onClick = {}, modifier = Modifier.weight(1f), filled = false)
+                ActionButton(
+                    text = "WhatsApp",
+                    onClick = { abrirWhatsApp(context) },
+                    modifier = Modifier.weight(1f),
+                    filled = false
+                )
             }
         }
         item {
@@ -297,32 +427,53 @@ private fun HomeContent(
                 }
             }
         }
+
+        // ---- Atajos rápidos (con funcionalidad real) ----
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                serviciosDestacados.forEachIndexed { index, item ->
-                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                atajos.forEach { atajo ->
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(14.dp))
+                            .border(1.dp, Line, RoundedCornerShape(14.dp))
+                            .background(Color.White)
+                            .clickable(onClick = atajo.onClick)
+                            .padding(vertical = 14.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         Icon(
-                            imageVector = when (index) {
-                                0 -> Icons.Outlined.StarBorder
-                                1 -> Icons.Outlined.Home
-                                else -> Icons.AutoMirrored.Outlined.Send
-                            },
-                            contentDescription = null,
-                            tint = Ink
+                            imageVector = atajo.icono,
+                            contentDescription = atajo.titulo,
+                            tint = Marca,
+                            modifier = Modifier.size(24.dp)
                         )
-                        Box(
-                            modifier = Modifier
-                                .padding(top = 9.dp)
-                                .fillMaxWidth(.78f)
-                                .height(7.dp)
-                                .clip(RoundedCornerShape(5.dp))
-                                .background(Line)
+                        Text(
+                            atajo.titulo,
+                            color = Ink,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
                         )
-                        Text(item.descripcion, color = SoftInk, fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
                     }
                 }
             }
         }
+
+        // ---- Video de muestra (reproductor real, bien visible) ----
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "Conoce nuestro trabajo",
+                    color = Ink,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                VideoMuestra()
+            }
+        }
+
         item {
             Column(
                 modifier = Modifier
@@ -333,22 +484,19 @@ private fun HomeContent(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Icon(Icons.Outlined.CalendarToday, contentDescription = null, tint = Ink)
-                PlaceholderLines(
-                    modifier = Modifier
-                        .padding(top = 14.dp)
-                        .fillMaxWidth(),
-                    widths = listOf(.62f, .82f)
+                Text(
+                    "Reserva una videollamada y te mostramos los vestidos en vivo.",
+                    color = SoftInk,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 14.dp)
                 )
-                ActionButton(text = "Agendar cita en videollamada", onClick = onGoAppointments, modifier = Modifier.padding(top = 16.dp).fillMaxWidth(.72f))
+                ActionButton(
+                    text = "Agendar cita en videollamada",
+                    onClick = onGoAppointments,
+                    modifier = Modifier.padding(top = 16.dp).fillMaxWidth(.72f)
+                )
             }
-        }
-        item {
-            WireImage(
-                label = "Video de muestra",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(96.dp)
-            )
         }
     }
 }
