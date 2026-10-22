@@ -95,6 +95,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
+import androidx.compose.foundation.layout.heightIn
 import com.creacionesnormita.mobile.controller.CarritoController
 import com.creacionesnormita.mobile.controller.PerfilController
 import com.creacionesnormita.mobile.controller.ProductoController
@@ -370,9 +371,7 @@ private fun HomeContent(
         contentPadding = PaddingValues(18.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        item {
-            PlaceholderLines(widths = listOf(.32f, .86f, .62f, .78f))
-        }
+
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 ActionButton(text = "Ver colección", onClick = onGoCollection, modifier = Modifier.weight(1f))
@@ -494,7 +493,10 @@ private fun HomeContent(
                 ActionButton(
                     text = "Agendar cita en videollamada",
                     onClick = onGoAppointments,
-                    modifier = Modifier.padding(top = 16.dp).fillMaxWidth(.72f)
+                    modifier = Modifier
+                        .padding(top = 16.dp)
+                        .fillMaxWidth(.72f)
+                        .heightIn(min = 56.dp)
                 )
             }
         }
