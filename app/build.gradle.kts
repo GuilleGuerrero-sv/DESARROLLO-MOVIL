@@ -61,7 +61,8 @@ dependencies {
     implementation("io.github.jan-tennert.supabase:postgrest-kt")
     implementation("io.github.jan-tennert.supabase:auth-kt")
     implementation("io.ktor:ktor-client-android:3.5.2")
-
+    implementation("androidx.media3:media3-exoplayer:1.4.1")
+    implementation("androidx.media3:media3-ui:1.4.1")
     implementation("io.coil-kt.coil3:coil-compose:3.5.0")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.5.0")
 
