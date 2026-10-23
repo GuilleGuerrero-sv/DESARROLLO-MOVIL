@@ -66,7 +66,12 @@ Archivos importantes:
 - `MainActivity.kt`: punto de entrada de la aplicación.
 - `navigation/AppRoot.kt`: decide si se muestra login/registro o la app principal.
 - `features/auth/PantallaAutenticacion.kt`: interfaz de login y registro.
-- `features/main/PantallaPrincipal.kt`: pantalla principal, colección, cotización, citas, cuenta y menú.
+- `features/main/`: estructura de la pantalla principal (`PantallaPrincipal.kt`: barra superior, navegación inferior y pestañas; `DrawerOverlay.kt`: menú lateral).
+- `features/home/`: pestaña Inicio (`HomeContent.kt`) y el video de muestra (`VideoMuestra.kt`).
+- `features/collection/`: pestaña Colección con filtros y tarjetas de vestidos.
+- `features/quote/`: pestaña Cotizar (lista de cotización y mensaje por WhatsApp).
+- `features/appointments/`: pestaña Citas (formulario, selector de fecha y validaciones).
+- `features/account/`: pestaña Cuenta (perfil, favoritos y diálogos de editar/eliminar cuenta).
 - `core/design/Theme.kt`: colores y tema visual.
 - `core/model/Vestido.kt`: modelos de datos simples.
 - `core/sample/DatosDeMuestra.kt`: datos de ejemplo para mostrar la interfaz.

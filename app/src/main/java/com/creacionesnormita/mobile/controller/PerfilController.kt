@@ -73,8 +73,7 @@ class PerfilController {
     suspend fun actualizarPerfil(
         nombre: String,
         celular: String,
-        otroContacto: String?,
-        fotoUrl: String?
+        otroContacto: String?
     ): Boolean {
         val actual = perfilActual ?: return false
         cargandoPerfil = true
@@ -82,8 +81,7 @@ class PerfilController {
             val nuevoPerfil = actual.copy(
                 nombre = nombre.trim(),
                 celular = celular.trim(),
-                otro_contacto = otroContacto?.trim()?.ifBlank { null },
-                foto_url = fotoUrl?.trim()?.ifBlank { null }
+                otro_contacto = otroContacto?.trim()?.ifBlank { null }
             )
 
             SupabaseClient.client.from("profiles").upsert(nuevoPerfil)

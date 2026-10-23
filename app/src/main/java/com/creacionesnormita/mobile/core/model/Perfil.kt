@@ -12,7 +12,6 @@ data class Perfil(
     val fecha_nacimiento: String,
     val celular: String,
     @EncodeDefault val otro_contacto: String? = null,
-    @EncodeDefault val foto_url: String? = null,
     @EncodeDefault val rol: String = ROL_CLIENTE,
     @EncodeDefault val activo: Boolean = true,
 ) {
